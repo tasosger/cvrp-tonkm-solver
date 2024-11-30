@@ -86,6 +86,13 @@ class Solver:
                 continue
             if rt1.load + rt2.load > self.capacity:  
                 continue
+            savings_ratio = abs(sav.score) / (rt1.cost + rt2.cost)
+            
+            
+            if savings_ratio < 0.05:  
+                continue
+            
+            
 
             self.merge_routes(n1, n2)
 
@@ -155,22 +162,24 @@ class Solver:
                     if node1 == node2 or node1.route == node2.route:
                         continue  
 
-                    load_at_n1 = 8 + sum(n.demand for n in node1.route.sequence_of_nodes[:node1.position_in_route + 1])
-                    load_at_n2 = 8 + sum(n.demand for n in node2.route.sequence_of_nodes[:node2.position_in_route + 1])
-
-                    cost_individual = (
-                        load_at_n1 * self.cost_matrix[node1.route.sequence_of_nodes[node1.position_in_route - 1].id][node1.id] +
-                        load_at_n2 * self.cost_matrix[node2.route.sequence_of_nodes[node2.position_in_route - 1].id][node2.id]
-                    )
-
-                    load_merged = load_at_n1 + sum(n.demand for n in node2.route.sequence_of_nodes[node2.position_in_route:])
-                    cost_direct = load_merged * self.cost_matrix[node1.id][node2.id]
-
-                    score = cost_individual - cost_direct
+                    score = self.calculate_saving_score(node1, node2)
                     if score > 0:  
                         heapq.heappush(self.savings_heap, (-score, Saving(node1, node2, score)))
         
+    def calculate_saving_score(self, node1,node2):
+        load_at_n1 = 8 + sum(n.demand for n in node1.route.sequence_of_nodes[:node1.position_in_route + 1])
+        load_at_n2 = 8 + sum(n.demand for n in node2.route.sequence_of_nodes[:node2.position_in_route + 1])
 
+        cost_individual = (
+            load_at_n1 * self.cost_matrix[node1.route.sequence_of_nodes[node1.position_in_route - 1].id][node1.id] +
+            load_at_n2 * self.cost_matrix[node2.route.sequence_of_nodes[node2.position_in_route - 1].id][node2.id]
+        )
+
+        load_merged = load_at_n1 + sum(n.demand for n in node2.route.sequence_of_nodes[node2.position_in_route:])
+        cost_direct = load_merged * self.cost_matrix[node1.id][node2.id]
+
+        score = cost_individual - cost_direct
+        return score
 
 
 
