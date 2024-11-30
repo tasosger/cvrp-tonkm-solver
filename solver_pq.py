@@ -48,8 +48,7 @@ class Solver:
                     continue
 
                 distance = self.cost_matrix[n1.id][n2.id]
-                if distance > 100:  
-                    continue
+                
 
                 load_at_n1 = 8 + sum(node.demand for node in n1.route.sequence_of_nodes[:n1.position_in_route + 1])
                 load_at_n2 = 8 + sum(node.demand for node in n2.route.sequence_of_nodes[:n2.position_in_route + 1])
