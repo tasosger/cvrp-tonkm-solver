@@ -31,7 +31,7 @@ class Solver:
         self.sol = None
         self.savings_heap = []  
 
-    def solve(self, num_iterations=1, top_k_savings=3, lns_removal_percentage=0.1):
+    def solve(self, num_iterations=1, top_k_savings=3, use_metaheuristic='sa',lns_removal_percentage=0.1, **kwargs):
         best_solution = None
         best_cost = float('inf')
 
@@ -41,28 +41,17 @@ class Solver:
             self.clark_n_write()
             self.update_solution_cost()
             self.local_search()
-            #previous_cost = self.sol.cost
-            #removed_customers = self.edge_based_removal(lns_removal_percentage)
-            #self.regret_k_reinsertion(removed_customers, k=3)
-            #self.local_search()  # Refine after reinsertion
-
-            # Revert if LNS worsens the solution
+            
             
             if self.sol.cost < best_cost:
                 best_solution = self.deep_copy_solution(self.sol)
                 best_cost = best_solution.cost
-            #print('Solution',i, self.sol.cost)
             self.set_route_flag_false_for_all_node()
 
         self.sol = best_solution
-        #print("sdla",self.sol.cost)
         return self.sol
 
     def large_neighborhood_search(self, removal_percentage=0.1, regret_k=2):
-        """
-        Refined Large Neighborhood Search with Regret-k reinsertion.
-        """
-        # Step 1: Remove a small percentage of customers
         num_customers_to_remove = int(len(self.customers) * removal_percentage)
         removed_customers = random.sample(self.customers, num_customers_to_remove)
 
@@ -71,10 +60,8 @@ class Solver:
                 customer.route.sequence_of_nodes.remove(customer)
                 customer.route.load -= customer.demand
                 self.update_route_customers(customer.route)
-            else:
-                print(f"Customer {customer.id} not found in its route. Skipping removal.")
+            
 
-        # Step 2: Reinsert customers using Regret-k heuristic
         for customer in removed_customers:
             best_route = None
             best_position = None
@@ -94,7 +81,6 @@ class Solver:
                     if temp_route.load <= self.capacity:
                         cost_increase = self.calculate_total_route_cost(temp_route) - self.calculate_total_route_cost(route)
 
-                        # Calculate regret
                         regret = self.calculate_regret(customer, route, position, regret_k)
                         if regret > best_regret or (regret == best_regret and cost_increase < best_cost):
                             best_regret = regret
@@ -102,15 +88,12 @@ class Solver:
                             best_route = route
                             best_position = position
 
-            # Insert customer into the best route and position
             if best_route and best_position is not None:
                 best_route.sequence_of_nodes.insert(best_position, customer)
                 best_route.load += customer.demand
                 self.update_route_customers(best_route)
-            else:
-                print(f"Failed to reinsert customer {customer.id}")
+            
 
-        # Update solution cost after reinsertion
         self.update_solution_cost()
     
 
@@ -123,7 +106,7 @@ class Solver:
                 n2 = route.sequence_of_nodes[i + 1]
                 distance = self.cost_matrix[n1.id][n2.id]
                 edges.append((distance, n1, n2))
-        edges.sort(reverse=True)  # Sort by distance (most expensive edges first)
+        edges.sort(reverse=True)  
 
         removed_customers = set()
         for _, n1, n2 in edges:
@@ -152,14 +135,13 @@ class Solver:
                         cost_increase = self.calculate_total_route_cost(temp_route) - self.calculate_total_route_cost(route)
                         best_positions.append((cost_increase, route, pos))
 
-            # Sort positions by cost and calculate regret
             best_positions.sort()
             if len(best_positions) >= k:
                 regret = sum(pos[0] for pos in best_positions[1:k]) - best_positions[0][0]
             else:
-                regret = float('inf')  # High regret if fewer positions available
+                regret = float('inf')  
 
-            # Insert into the best position
+            
             if best_positions:
                 _, best_route, best_position = best_positions[0]
                 best_route.sequence_of_nodes.insert(best_position, customer)
@@ -169,9 +151,6 @@ class Solver:
 
 
     def calculate_regret(self, customer, route, position, k):
-        """
-        Calculates the regret of not inserting a customer into the best position.
-        """
         costs = []
         for pos in range(1, len(route.sequence_of_nodes)):
             temp_route = Route(self.depot, self.capacity)
@@ -186,10 +165,9 @@ class Solver:
                 cost = self.calculate_total_route_cost(temp_route) - self.calculate_total_route_cost(route)
                 costs.append(cost)
 
-        # Sort costs and calculate regret
         costs = sorted(costs)
         if len(costs) < k:
-            return float('-inf')  # No regret if fewer than k positions available
+            return float('-inf')  
         return sum(costs[:k]) - costs[0]
 
 
@@ -200,7 +178,6 @@ class Solver:
         return math.exp((current_cost - new_cost) / temperature)
 
     def perturb_solution(self, solution):
-        # Example: Reverse a random segment in a random route
         route = random.choice(solution.routes)
         if len(route.sequence_of_nodes) > 3:
             i, j = sorted(random.sample(range(1, len(route.sequence_of_nodes)), 2))
@@ -381,7 +358,6 @@ class Solver:
         for route in self.sol.routes:
             total_route_cost += self.calculate_total_route_cost(route)
         if (total_route_cost != cost):
-            #print(total_route_cost, cost)
             exit(1)
         self.sol.cost = cost
 
@@ -445,7 +421,6 @@ class Solver:
                         new_cost = self.calculate_total_route_cost(temp_route1) + self.calculate_total_route_cost(temp_route2)
 
                         gain = initial_cost - new_cost
-                        #print(gain)
                         if gain > best_gain + 1e-2:  
                             best_gain = gain
                             best_swap = (route1, route2, i, j, new_nodes1, new_nodes2)
@@ -465,7 +440,6 @@ class Solver:
             self.update_route_customers(route1)
             self.update_route_customers(route2)
             self.update_solution_cost()
-            #print(best_gain)
             return True 
 
         return False
@@ -530,87 +504,41 @@ class Solver:
 
     
 
+    
     def local_search(self):
-        #print(self.sol.cost)
         iteration = 0
         max_iterations = 100
+        improved = True
 
-        while iteration < max_iterations:
-
+        while iteration < max_iterations and improved:
             improved = False
+
             if self.cross_route_reinsert():
-                self.update_solution_cost()
                 improved = True
 
-            #print(iteration, self.sol.cost)
-
-            if not improved:
-                break
-            iteration+=1
-            
-        iteration = 0
-        while iteration < max_iterations:
-
-            improved = False
             if self.cross_route_swap():
-                self.update_solution_cost()
                 improved = True
 
-            #print(iteration, self.sol.cost)
-
-            if not improved:
-                break
-            iteration+=1
-        
-        while iteration < max_iterations:
-            improved = False
-            if self.cross_route_two_opt(): 
-                self.update_solution_cost()
-
+            if self.cross_route_two_opt():
                 improved = True
-            #print(iteration, self.sol.cost)
 
-            if not improved:
-                break
-            iteration+=1           
-        iteration = 0
-        '''
-        while iteration < max_iterations:
-            improved =  False
-            if self.cross_route_two_opt(): 
-                improved = True
+            for route in self.sol.routes:
+                if self.reinsert(route):
+                    improved = True
+
+                if self.swap(route):
+                    improved = True
+
+                if self.two_opt(route):
+                    improved = True
 
             self.update_solution_cost()
 
-            if not improved:
-                print (iteration)
-                break
-            
             iteration += 1
-        for route in self.sol.routes:
-            max_iterations = 100
-            iteration = 1
-
-            while iteration < max_iterations:
-
-                improved = False
-                #if self.swap(route):
-                 #   improved = True
-                #if self.reinsert(route):
-                 #   improved = True
-                if not improved:
-                    #print(iteration)
-                    break
-            iteration = 1
-
-            #while iteration < max_iterations:
-
-             #   improved = False
-              #  if self.two_opt(route):
-               #     improved = True
-                
-        #print(iteration)
-        '''
+   
+        
+    
+    
 
     def calculate_route_weight(self, route):
         total = 0
@@ -755,11 +683,9 @@ class Solver:
                     best_k = k
 
         if best_gain > 0:
-            print(best_gain)
             node = nodes.pop(best_i)
             nodes.insert(best_k + 1, node)
             self.update_solution_cost()
-            #print(self.sol.cost)
             return True
         return False
     
@@ -872,3 +798,106 @@ class Solver:
         
         self.update_solution_cost()
     
+    def simulated_annealing(self, initial_temperature=1, cooling_rate=0.95, max_iterations=10):
+        current_solution = self.deep_copy_solution(self.sol)
+        best_solution = self.deep_copy_solution(self.sol)
+        current_temperature = initial_temperature
+
+        for iteration in range(max_iterations):
+            print(iteration)
+            neighbor_solution = self.generate_neighbor_solution(current_solution)
+
+            current_cost = self.calculate_total_cost(current_solution)
+            neighbor_cost = self.calculate_total_cost(neighbor_solution)
+            print(neighbor_cost)
+            acceptance_probability = self.calculate_acceptance_probability(current_cost, neighbor_cost, current_temperature)
+            if random.random() < acceptance_probability:
+                current_solution = neighbor_solution
+                if neighbor_cost < self.calculate_total_cost(best_solution):
+                    best_solution = self.deep_copy_solution(neighbor_solution)
+
+            current_temperature *= cooling_rate
+
+            if current_temperature < 1e-6:
+                break
+
+        self.sol = best_solution
+        return best_solution
+
+
+    def generate_neighbor_solution(self, solution):
+        neighbor_solution = self.deep_copy_solution(solution)
+        move_types = [self.cross_route_reinsert, self.cross_route_swap, self.cross_route_two_opt]
+        move = random.choice(move_types)
+
+        if move == self.cross_route_reinsert:
+            self.cross_route_reinsert()
+        elif move == self.cross_route_swap:
+            self.cross_route_swap()
+        elif move == self.cross_route_two_opt:
+            self.cross_route_two_opt()
+
+        return neighbor_solution
+
+
+    def tabu_search(self, tabu_tenure=10, max_iterations=10):
+        current_solution = self.deep_copy_solution(self.sol)
+        best_solution = self.deep_copy_solution(self.sol)
+        tabu_list = []
+        max_tabu_size = tabu_tenure
+
+        for iteration in range(max_iterations):
+            neighbors = self.generate_all_neighbors(current_solution)
+
+            best_neighbor = None
+            best_neighbor_cost = float('inf')
+
+            for neighbor in neighbors:
+                neighbor_cost = self.calculate_total_cost(neighbor)
+                if neighbor not in tabu_list and neighbor_cost < best_neighbor_cost:
+                    best_neighbor = neighbor
+                    best_neighbor_cost = neighbor_cost
+
+            if best_neighbor:
+                current_solution = best_neighbor
+                tabu_list.append(best_neighbor)
+                if len(tabu_list) > max_tabu_size:
+                    tabu_list.pop(0)
+
+                if best_neighbor_cost < self.calculate_total_cost(best_solution):
+                    best_solution = self.deep_copy_solution(best_neighbor)
+
+        self.sol = best_solution
+        return best_solution
+
+
+    def generate_all_neighbors(self, solution):
+        
+        neighbors = []
+
+        if self.cross_route_reinsert():
+            neighbors.append(self.deep_copy_solution(solution))
+        if self.cross_route_swap():
+            neighbors.append(self.deep_copy_solution(solution))
+        if self.cross_route_two_opt():
+            neighbors.append(self.deep_copy_solution(solution))
+
+        for route in solution.routes:
+            if self.reinsert(route):
+                neighbors.append(self.deep_copy_solution(solution))
+            if self.swap(route):
+                neighbors.append(self.deep_copy_solution(solution))
+            if self.two_opt(route):
+                neighbors.append(self.deep_copy_solution(solution))
+
+        return neighbors
+    
+    def hybrid_lns_metaheuristic(self, removal_percentage=0.2, regret_k=3, initial_temperature=1000, cooling_rate=0.95, max_iterations=1000):
+        self.large_neighborhood_search(removal_percentage, regret_k)
+
+        self.simulated_annealing(initial_temperature, cooling_rate, max_iterations)
+
+        self.local_search()
+
+        return self.sol
+
