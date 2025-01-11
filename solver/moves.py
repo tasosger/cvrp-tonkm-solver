@@ -58,13 +58,18 @@ class RelocationMove:
 class SwapMove:
     
 
-    def __init__(self, route1, route2, index1, index2, cost_matrix):
+    def __init__(self, route1, route2, index1, index2, cost_matrix, capacity):
         self.route1 = route1
         self.route2 = route2
         self.index1 = index1
         self.index2 = index2
         self.cost_matrix = cost_matrix
-
+        self.node1 = route1.sequence_of_nodes[index1]
+        self.node2 = route2.sequence_of_nodes[index2]
+        self.is_feasible = (
+            (route1.load - self.node1.demand + self.node2.demand <= capacity) and
+            (route2.load - self.node2.demand + self.node1.demand <= capacity)
+        )
         self.move_cost = self.calculate_move_cost()
 
     def apply(self):
@@ -81,31 +86,105 @@ class SwapMove:
         self.route2.load = sum(node.demand for node in self.route2.sequence_of_nodes)
 
     def calculate_move_cost(self):
-        node1 = self.route1.sequence_of_nodes[self.index1]
-        node2 = self.route2.sequence_of_nodes[self.index2]
+        
+        temp_route1 = self.route1.copy()
+        temp_route2 = self.route2.copy()
 
-        from_prev_id1 = self.route1.sequence_of_nodes[self.index1 - 1].id \
-            if self.index1 > 0 else self.route1.sequence_of_nodes[0].id
-        from_next_id1 = self.route1.sequence_of_nodes[self.index1 + 1].id \
-            if self.index1 + 1 < len(self.route1.sequence_of_nodes) else self.route1.sequence_of_nodes[-1].id
+        temp_route1.sequence_of_nodes[self.index1], temp_route2.sequence_of_nodes[self.index2] = \
+            temp_route2.sequence_of_nodes[self.index2], temp_route1.sequence_of_nodes[self.index1]
 
-        to_prev_id2 = self.route2.sequence_of_nodes[self.index2 - 1].id \
-            if self.index2 > 0 else self.route2.sequence_of_nodes[0].id
-        to_next_id2 = self.route2.sequence_of_nodes[self.index2 + 1].id \
-            if self.index2 + 1 < len(self.route2.sequence_of_nodes) else self.route2.sequence_of_nodes[-1].id
+        cost_before = (
+            self.route1.calculate_total_route_cost(self.cost_matrix) +
+            self.route2.calculate_total_route_cost(self.cost_matrix)
+        )
 
-        cost1_before = self.cost_matrix[from_prev_id1][node1.id] + self.cost_matrix[node1.id][from_next_id1]
-        cost1_after = self.cost_matrix[from_prev_id1][node2.id] + self.cost_matrix[node2.id][from_next_id1]
+        cost_after = (
+            temp_route1.calculate_total_route_cost(self.cost_matrix) +
+            temp_route2.calculate_total_route_cost(self.cost_matrix)
+        )
 
-        cost2_before = self.cost_matrix[to_prev_id2][node2.id] + self.cost_matrix[node2.id][to_next_id2]
-        cost2_after = self.cost_matrix[to_prev_id2][node1.id] + self.cost_matrix[node1.id][to_next_id2]
+        return cost_after - cost_before
 
-        return (cost1_after - cost1_before) + (cost2_after - cost2_before)
+
+
 
 
 class TwoOptMove:
+    
 
+    def __init__(self, route1, route2, i, j, cost_matrix, capacity):
+        
+        self.route1 = route1
+        self.route2 = route2
+        self.i = i
+        self.j = j
+        self.cost_matrix = cost_matrix
+
+        if route1 == route2:
+            load1_after = (
+                sum(node.demand for node in route1.sequence_of_nodes[:i]) +
+                sum(node.demand for node in route1.sequence_of_nodes[j:])
+            )
+            self.is_feasible = load1_after <= capacity
+        else:
+            load1_after = (
+                route1.load - sum(node.demand for node in route1.sequence_of_nodes[i:]) +
+                sum(node.demand for node in route2.sequence_of_nodes[j:])
+            )
+            load2_after = (
+                route2.load - sum(node.demand for node in route2.sequence_of_nodes[j:]) +
+                sum(node.demand for node in route1.sequence_of_nodes[i:])
+            )
+            self.is_feasible = load1_after <= capacity and load2_after <= capacity
+
+        self.move_cost = self.calculate_move_cost()
+
+    def apply(self):
+        
+        if not self.is_feasible:
+            raise ValueError("Cannot apply an infeasible move.")
+
+        segment1 = self.route1.sequence_of_nodes[self.i:]
+        segment2 = self.route2.sequence_of_nodes[self.j:]
+
+        
+        self.route1.sequence_of_nodes = self.route1.sequence_of_nodes[:self.i] + segment2
+        self.route2.sequence_of_nodes = self.route2.sequence_of_nodes[:self.j] + segment1
+
+        self.route1.load = sum(node.demand for node in self.route1.sequence_of_nodes)
+        self.route2.load = sum(node.demand for node in self.route2.sequence_of_nodes)
+
+        self.route1.cost = self.route1.calculate_total_route_cost(self.cost_matrix)
+        self.route2.cost = self.route2.calculate_total_route_cost(self.cost_matrix)
+
+    def calculate_move_cost(self):
+        
+        temp_route1 = self.route1.copy()
+        temp_route2 = self.route2.copy()
+
+        segment1 = temp_route1.sequence_of_nodes[self.i:]
+        segment2 = temp_route2.sequence_of_nodes[self.j:]
+
+        temp_route1.sequence_of_nodes = temp_route1.sequence_of_nodes[:self.i] + segment2
+        temp_route2.sequence_of_nodes = temp_route2.sequence_of_nodes[:self.j] + segment1
+
+        cost_before = (
+            self.route1.calculate_total_route_cost(self.cost_matrix) +
+            self.route2.calculate_total_route_cost(self.cost_matrix)
+        )
+
+        cost_after = (
+            temp_route1.calculate_total_route_cost(self.cost_matrix) +
+            temp_route2.calculate_total_route_cost(self.cost_matrix)
+        )
+
+        return cost_after - cost_before
+
+
+
+class InRouteTwoOptMove:
     def __init__(self, route, i, j, cost_matrix):
+        
         self.route = route
         self.i = i
         self.j = j
@@ -113,21 +192,55 @@ class TwoOptMove:
 
         self.move_cost = self.calculate_move_cost()
 
-    def apply(self):
-        self.route.sequence_of_nodes[self.i:self.j + 1] = reversed(self.route.sequence_of_nodes[self.i:self.j + 1])
-        self.update_route_cost()
+    def calculate_move_cost(self):
+        temp_route = self.route.copy()
 
-    def update_route_cost(self):
+        temp_route.sequence_of_nodes[self.i:self.j + 1] = reversed(temp_route.sequence_of_nodes[self.i:self.j + 1])
+
+        cost_before = self.route.calculate_total_route_cost(self.cost_matrix)
+        cost_after = temp_route.calculate_total_route_cost(self.cost_matrix)
+
+        return cost_after - cost_before
+
+    def apply(self):
+        
+        self.route.sequence_of_nodes[self.i:self.j + 1] = reversed(self.route.sequence_of_nodes[self.i:self.j + 1])
         self.route.cost = self.route.calculate_total_route_cost(self.cost_matrix)
 
+
+class InRouteSwapMove:
+    def __init__(self, route, index1, index2, cost_matrix):
+        self.route = route
+        self.index1 = index1
+        self.index2 = index2
+        self.cost_matrix = cost_matrix
+
+        self.move_cost = self.calculate_move_cost()
+
     def calculate_move_cost(self):
-        nodes = self.route.sequence_of_nodes
+        """
+        Calculate the cost impact of swapping two nodes within the same route using a temporary route.
+        :return: The net cost difference (negative indicates improvement).
+        """
+        # Create a temporary copy of the route
+        temp_route = self.route.copy()
 
-        prev_id = nodes[self.i - 1].id if self.i > 0 else nodes[0].id
-        next_id = nodes[self.j + 1].id if self.j + 1 < len(nodes) else nodes[-1].id
+        # Simulate the swap on the temporary route
+        temp_route.sequence_of_nodes[self.index1], temp_route.sequence_of_nodes[self.index2] = \
+            temp_route.sequence_of_nodes[self.index2], temp_route.sequence_of_nodes[self.index1]
 
-        prev_cost = self.cost_matrix[prev_id][nodes[self.i].id] + self.cost_matrix[nodes[self.j].id][next_id]
-        new_cost = self.cost_matrix[prev_id][nodes[self.j].id] + self.cost_matrix[nodes[self.i].id][next_id]
+        # Calculate the cost before and after the move
+        cost_before = self.route.calculate_total_route_cost(self.cost_matrix)
+        cost_after = temp_route.calculate_total_route_cost(self.cost_matrix)
 
-        return new_cost - prev_cost
+        # Return the difference in costs
+        return cost_after - cost_before
 
+
+
+    def apply(self):
+        
+        self.route.sequence_of_nodes[self.index1], self.route.sequence_of_nodes[self.index2] = \
+            self.route.sequence_of_nodes[self.index2], self.route.sequence_of_nodes[self.index1]
+
+        self.route.cost = self.route.calculate_total_route_cost(self.cost_matrix)
