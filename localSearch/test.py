@@ -75,5 +75,12 @@ def main():
     print("Solution written to output.txt")
 
 
+import time
+
 if __name__ == "__main__":
+    start_time = time.time()
     main()
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Program execution time: {elapsed_time:.2f} seconds")
+
