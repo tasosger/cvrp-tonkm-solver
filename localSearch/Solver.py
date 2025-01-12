@@ -1,5 +1,6 @@
+import heapq
 from VRP_Model import *
-from SolutionDrawer import *
+import random
 
 
 class Solution:
@@ -13,6 +14,10 @@ class Saving:
         self.n1 = n1
         self.n2 = n2
         self.score = sav
+
+    def __lt__(self, other):
+        # Compare Savings based on the score
+        return self.score < other.score
 
 
 class RelocationMove(object):
@@ -83,24 +88,30 @@ class Solver:
         self.emptyWeight = m.emptyWeight
 
     def solve(self):
-        self.SetRoutedFlagToFalseForAllCustomers()
-        self.Clarke_n_Wright()
-        print("Constructive solution:")
-        self.ReportSolution(self.sol)
-        SolDrawer.draw('Clark_n_Wright', self.sol, self.allNodes)
-        print("\n\n\n")
-        print("Swaps:")
-        self.LocalSearch(1)
-        self.ReportSolution(self.sol)
-        print("\n\n\n")
-        print("Two Opt Moves:")
-        self.LocalSearch(2)
-        self.ReportSolution(self.sol)
-        print("\n\n\n")
-        print("Relocations:")
-        self.LocalSearch(0)
-        self.ReportSolution(self.sol)
-        return self.sol
+        random.seed(5)
+        num_restarts = 15
+        best_solution = None
+        best_cost = float('inf')
+
+        for restart in range(num_restarts):
+            print(f"Restart {restart + 1}/{num_restarts}")
+
+            self.SetRoutedFlagToFalseForAllCustomers()
+            self.Clarke_n_Wright(rcl_size=10)
+            print(f"Solution cost after clarke and wright on restart {restart + 1}: {self.sol.cost}")
+
+            print("Applying VND...")
+            self.VND()
+
+            print(f"Solution cost after restart {restart + 1}: {self.sol.cost}")
+
+            if self.sol.cost < best_cost:
+                best_solution = self.cloneSolution(self.sol)
+                best_cost = self.sol.cost
+
+        self.ReportSolution(best_solution)
+        print(f"Overall best solution cost: {best_cost}")
+        return best_solution
 
     def SetRoutedFlagToFalseForAllCustomers(self):
         for c in self.customers:
@@ -114,29 +125,70 @@ class Solver:
             print(rt.cost)
         print(self.sol.cost)
 
-    def Clarke_n_Wright(self):
+    def Clarke_n_Wright(self, rcl_size):
         self.sol = self.create_initial_routes()
-        savings: list = self.calculate_savings()
-        savings.sort(key=lambda s: s.score, reverse=True)
-        for i in range(0, len(savings)):
-            sav = savings[i]
-            n1 = sav.n1
-            n2 = sav.n2
-            rt1 = n1.route
-            rt2 = n2.route
+        savings_heap = self.precalculate_savings()
+
+        while savings_heap:
+            rcl = []
+            for _ in range(min(rcl_size, len(savings_heap))):
+                rcl.append(heapq.heappop(savings_heap))
+
+            chosen_saving = random.choice(rcl)
+            _, saving = chosen_saving
+            n1, n2 = saving.n1, saving.n2
+
+            for entry in rcl:
+                if entry != chosen_saving:
+                    heapq.heappush(savings_heap, entry)
 
             if n1.route == n2.route:
                 continue
-            if self.not_first_or_last(rt1, n1) or self.not_first_or_last(rt2, n2):
+            if self.not_first_or_last(n1.route, n1) or self.not_first_or_last(n2.route, n2):
                 continue
-            if rt1.load + rt2.load > self.capacity:
+            if n1.route.load + n2.route.load > self.capacity:
                 continue
-            if sav.score < 0:
-                continue
+
             self.merge_routes(n1, n2)
 
-        self.update_routes_cost()
+            savings_heap = self.update_savings_after_merge(savings_heap, n1.route)
+
         self.sol.cost = self.calculate_total_cost()
+
+    def precalculate_savings(self):
+        savings_heap = []
+        for i in range(len(self.customers)):
+            n1 = self.customers[i]
+            for j in range(i + 1, len(self.customers)):
+                n2 = self.customers[j]
+                if n1.route == n2.route:
+                    continue
+
+                separate_routes_cost = n1.route.cost + n2.route.cost
+                merged_routes_cost = self.calculate_cost_for_test_route(n1.route.sequenceOfNodes.copy(), n2.route.sequenceOfNodes.copy(), n1, n2)
+                sav_score = separate_routes_cost - merged_routes_cost
+
+                if sav_score > 0:
+                    heapq.heappush(savings_heap, (-sav_score, Saving(n1, n2, sav_score)))
+        return savings_heap
+
+    def update_savings_after_merge(self, savings_heap, merged_route):
+        new_heap = []
+        for _, saving in savings_heap:
+            n1, n2 = saving.n1, saving.n2
+
+            if n1.route != merged_route and n2.route != merged_route:
+                heapq.heappush(new_heap, (-saving.score, saving))
+                continue
+
+            if n1.route == merged_route or n2.route == merged_route:
+                separate_routes_cost = n1.route.cost + n2.route.cost
+                merged_routes_cost = self.calculate_cost_for_test_route(n1.route.sequenceOfNodes.copy(), n2.route.sequenceOfNodes.copy(), n1, n2)
+                sav_score = separate_routes_cost - merged_routes_cost
+
+                if sav_score > 0:
+                    heapq.heappush(new_heap, (-sav_score, Saving(n1, n2, sav_score)))
+        return new_heap
 
     def calculate_cost_for_route(self, routeNodes):
         tot_dem = sum(n.demand for n in routeNodes)
@@ -152,33 +204,21 @@ class Solver:
     def calculate_total_cost(self):
         newCost = 0
         for rt in self.sol.routes:
-            routeCost = self.calculate_cost_for_route(rt.sequenceOfNodes)
-            newCost += routeCost
+            newCost += rt.cost
         return newCost
 
-    def update_routes_cost(self):
-        for rt in self.sol.routes:
-            routeCost = self.calculate_cost_for_route(rt.sequenceOfNodes)
-            rt.cost = routeCost
+    def calculate_cost_for_test_route(self, rt1, rt2, n1, n2):
 
-    def calculate_savings(self):
-        savings = []
-        for i in range(0, len(self.customers)):
-            n1 = self.customers[i]
-            for j in range(i + 1, len(self.customers)):
-                n2 = self.customers[j]
-
-                separateRoutesCost = (self.distanceMatrix[self.depot.ID][n1.ID] * (self.emptyWeight + n1.demand) +
-                                      self.distanceMatrix[self.depot.ID][n2.ID] * (self.emptyWeight + n2.demand))
-                mergedRoutesCost = self.distanceMatrix[self.depot.ID][n1.ID] * (
-                        self.emptyWeight + n1.demand + n2.demand) + self.distanceMatrix[n1.ID][n2.ID] * (
-                                           self.emptyWeight + n2.demand)
-                score = separateRoutesCost - mergedRoutesCost
-
-                sav = Saving(n1, n2, score)
-                savings.append(sav)
-
-        return savings
+        if n1.position_in_route == 1 and n2.position_in_route == len(rt2) - 2:
+            rt1[1:1] = rt2[1:len(rt2) - 1]
+        elif n1.position_in_route == 1 and n2.position_in_route == 1:
+            rt1[1:1] = rt2[len(rt2) - 2:0:-1]
+        elif n1.position_in_route == len(rt1) - 2 and n2.position_in_route == 1:
+            rt1[len(rt1) - 1:len(rt1) - 1] = rt2[1:len(rt2) - 1]
+        elif n1.position_in_route == len(rt1) - 2 and n2.position_in_route == len(rt2) - 2:
+            rt1[len(rt1) - 1:len(rt1) - 1] = rt2[len(rt2) - 2:0:-1]
+        cost = self.calculate_cost_for_route(rt1)
+        return cost
 
     def create_initial_routes(self):
         s = Solution()
@@ -214,6 +254,7 @@ class Solver:
             rt1.sequenceOfNodes[len(rt1.sequenceOfNodes) - 1:len(rt1.sequenceOfNodes) - 1] = rt2.sequenceOfNodes[
                                                                                              len(rt2.sequenceOfNodes) - 2:0:-1]
         rt1.load += rt2.load
+        rt1.cost = self.calculate_cost_for_route(rt1.sequenceOfNodes)
         self.sol.routes.remove(rt2)
         self.update_route_customers(rt1)
 
@@ -222,6 +263,45 @@ class Solver:
             n = rt.sequenceOfNodes[i]
             n.route = rt
             n.position_in_route = i
+
+    def VND(self):
+        self.bestSolution = self.cloneSolution(self.sol)
+        VNDIterator = 0
+        kmax = 2
+        rm = RelocationMove()
+        sm = SwapMove()
+        top = TwoOptMove()
+        k = 0
+
+        while k <= kmax:
+            self.InitializeOperators(rm, sm, top)
+            if k == 2:
+                self.FindBestRelocationMove(rm)
+                if rm.originRoutePosition is not None and rm.moveCost < 0:
+                    self.ApplyRelocationMove(rm)
+                    VNDIterator = VNDIterator + 1
+                    k = 0
+                else:
+                    k += 1
+            elif k == 1:
+                self.FindBestSwapMove(sm)
+                if sm.positionOfFirstRoute is not None and sm.moveCost < 0:
+                    self.ApplySwapMove(sm)
+                    VNDIterator = VNDIterator + 1
+                    k = 0
+                else:
+                    k += 1
+            elif k == 0:
+                self.FindBestTwoOptMove(top)
+                if top.positionOfFirstRoute is not None and top.moveCost < 0:
+                    self.ApplyTwoOptMove(top)
+                    VNDIterator = VNDIterator + 1
+                    k = 0
+                else:
+                    k += 1
+
+            if self.sol.cost < self.bestSolution.cost:
+                self.bestSolution = self.cloneSolution(self.sol)
 
     def LocalSearch(self, operator):
         self.bestSolution = self.cloneSolution(self.sol)
@@ -238,7 +318,7 @@ class Solver:
 
             # Relocations
             if operator == 0:
-                SolDrawer.draw(f"Relocation {localSearchIterator}", self.sol, self.allNodes)
+                #SolDrawer.draw(f"Relocation {localSearchIterator}", self.sol, self.allNodes)
                 self.FindBestRelocationMove(rm)
                 if rm.originRoutePosition is not None:
                     if rm.moveCost < 0:
@@ -247,7 +327,7 @@ class Solver:
                         terminationCondition = True
             # Swaps
             elif operator == 1:
-                SolDrawer.draw(f"Swap {localSearchIterator}", self.sol, self.allNodes)
+                #SolDrawer.draw(f"Swap {localSearchIterator}", self.sol, self.allNodes)
                 self.FindBestSwapMove(sm)
                 if sm.positionOfFirstRoute is not None:
                     if sm.moveCost < 0:
@@ -255,7 +335,7 @@ class Solver:
                     else:
                         terminationCondition = True
             elif operator == 2:
-                SolDrawer.draw(f"TwoOpt {localSearchIterator}", self.sol, self.allNodes)
+                #SolDrawer.draw(f"TwoOpt {localSearchIterator}", self.sol, self.allNodes)
                 self.FindBestTwoOptMove(top)
                 if top.positionOfFirstRoute is not None:
                     if top.moveCost < 0:
