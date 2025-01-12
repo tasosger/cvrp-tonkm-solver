@@ -34,12 +34,10 @@ class LocalSearch:
         max_iterations = 100
         iteration = 0
 
-        # Initialize the solution tree
         root_node = SolutionNode(self.sol)
         current_node = root_node
         best_node = root_node
 
-        # Define search methods to generate possible moves
         search_methods = [
             self.cross_route_reinsert,
             self.cross_route_swap,
@@ -61,18 +59,15 @@ class LocalSearch:
                         best_move = move
                     elif second_best_move is None or move.move_cost < second_best_move.move_cost:
                         second_best_move = move  
-                        #print(second_best_move.move_cost != best_move.move_cost)
 
             if best_move:
                 if second_best_move and random.random() < 0.2:
-                    #print(f"Applying second-best move with cost: {second_best_move.move_cost}")
                     second_best_move.apply()
                     new_solution = self.sol
                     new_node = SolutionNode(new_solution, move=second_best_move, parent=current_node)
                     current_node.add_child(new_node)
                     current_node = new_node
                 else:  
-                    #print(f"Applying best move with cost improvement: {best_move.move_cost}")
                     best_move.apply()
                     new_solution = self.sol
                     new_node = SolutionNode(new_solution, move=best_move, parent=current_node)
@@ -80,7 +75,6 @@ class LocalSearch:
                     current_node = new_node
 
                 self.sol.update_solution_cost()
-                #print(f"Updated solution cost: {self.sol.cost}")
 
                 if current_node.cost < best_node.cost:
                     best_node = current_node
@@ -90,8 +84,6 @@ class LocalSearch:
 
             iteration += 1
 
-        #print(f"Local search completed after {iteration} iterations.")
-        #print(f"Best solution cost: {best_node.cost}")
         return best_node.solution
 
 
