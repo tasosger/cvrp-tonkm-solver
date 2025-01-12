@@ -1,4 +1,21 @@
 from moves import RelocationMove, SwapMove, TwoOptMove, InRouteSwapMove, InRouteTwoOptMove
+import math
+import random
+from heapq import heappush, heappop
+
+
+class SolutionNode:
+    def __init__(self, solution, move=None, parent=None, cost=None):
+        
+        self.solution = solution
+        self.move = move
+        self.parent = parent
+        self.children = []
+        self.cost = cost if cost is not None else solution.cost
+
+    def add_child(self, child_node):
+        self.children.append(child_node)
+
 
 class LocalSearch:
     
@@ -8,41 +25,76 @@ class LocalSearch:
         self.sol= solution
         self.cost_matrix = cost_matrix
         self.capacity = capacity
+        self.initial_temperature = 100.0
+        self.cooling_rate = 0.95
+        self.min_temperature = 1e-3
 
     def local_search(self):
-        max_iterations = 20
+        
+        max_iterations = 100
         iteration = 0
 
+        # Initialize the solution tree
+        root_node = SolutionNode(self.sol)
+        current_node = root_node
+        best_node = root_node
+
+        # Define search methods to generate possible moves
         search_methods = [
             self.cross_route_reinsert,
             self.cross_route_swap,
+            self.two_opt,
+            self.swap_within_route,
             self.two_opt_within_route,
-            self.swap_within_route
         ]
 
         while iteration < max_iterations:
-            improved = False
-            overall_best = None
+            best_move = None
+            second_best_move = None
 
             for method in search_methods:
-                best_move = method()
-                if best_move and best_move.move_cost < 0:
-                    if overall_best is None or best_move.move_cost + 0.1< overall_best.move_cost:
-                        overall_best = best_move
+                move = method()
+                
+                if move:
+                    if best_move is None or move.move_cost < best_move.move_cost:
+                        second_best_move = best_move  
+                        best_move = move
+                    elif second_best_move is None or move.move_cost < second_best_move.move_cost:
+                        second_best_move = move  
+                        #print(second_best_move.move_cost != best_move.move_cost)
 
-            if overall_best:
-                overall_best.apply()
+            if best_move:
+                if second_best_move and random.random() < 0.2:
+                    #print(f"Applying second-best move with cost: {second_best_move.move_cost}")
+                    second_best_move.apply()
+                    new_solution = self.sol
+                    new_node = SolutionNode(new_solution, move=second_best_move, parent=current_node)
+                    current_node.add_child(new_node)
+                    current_node = new_node
+                else:  
+                    #print(f"Applying best move with cost improvement: {best_move.move_cost}")
+                    best_move.apply()
+                    new_solution = self.sol
+                    new_node = SolutionNode(new_solution, move=best_move, parent=current_node)
+                    current_node.add_child(new_node)
+                    current_node = new_node
+
                 self.sol.update_solution_cost()
-                print(f"Updated solution cost: {self.sol.cost}")
-                improved = True
+                #print(f"Updated solution cost: {self.sol.cost}")
 
-            if not improved:
-                break  
+                if current_node.cost < best_node.cost:
+                    best_node = current_node
+
+            else:
+                break
 
             iteration += 1
 
-        print(f"Local search completed after {iteration} iterations.")
-        return self.sol
+        #print(f"Local search completed after {iteration} iterations.")
+        #print(f"Best solution cost: {best_node.cost}")
+        return best_node.solution
+
+
 
 
 
@@ -60,7 +112,7 @@ class LocalSearch:
                     for j in range(1, len(to_route.sequence_of_nodes)): 
                         move = RelocationMove(node, from_route, to_route, i, j, self.capacity, self.cost_matrix)
                         #print(move.move_cost)
-                        if move.move_cost < 0 and (best_move is None or move.move_cost < best_move.move_cost) and move.is_feasible:
+                        if (best_move is None or move.move_cost < best_move.move_cost) and move.move_cost < 0 and move.is_feasible:
                             best_move = move
 
         
@@ -96,7 +148,7 @@ class LocalSearch:
                         
                         move = TwoOptMove(route1, route2, i, j, self.cost_matrix, self.capacity)
 
-                        if move.is_feasible and move.move_cost < 0 and (best_move is None or move.move_cost < best_move.move_cost):
+                        if move.is_feasible  and move.move_cost < 0 and (best_move is None or move.move_cost < best_move.move_cost):
                             best_move = move
 
         return best_move
@@ -122,7 +174,7 @@ class LocalSearch:
 
         for route in self.sol.routes:
             for i in range(1, len(route.sequence_of_nodes) - 2):  
-                for j in range(i + 1, len(route.sequence_of_nodes) - 1):
+                for j in range(i + 2, len(route.sequence_of_nodes) - 1):
                     move = InRouteTwoOptMove(route, i, j, self.cost_matrix)
 
                     if move.move_cost < 0:

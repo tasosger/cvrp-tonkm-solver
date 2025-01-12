@@ -49,9 +49,12 @@ class ClarkNWrite:
         s = Solution(self.cost_matrix)
         for customer in self.customers:
             rt = Route(self.depot, self.capacity)
+
             customer.route = rt
             customer.position_in_route = 1
             rt.sequence_of_nodes.append(customer)
+            rt.prefix_loads = [0, customer.demand]
+            rt.prefix_distances = [0, self.cost_matrix[self.depot.id][customer.id]]
             rt.load = customer.demand
             rt.cost = (rt.load + 8) * self.cost_matrix[self.depot.id][customer.id]
             s.routes.append(rt)
@@ -82,13 +85,54 @@ class ClarkNWrite:
         self.recalculate_savings_for_route(rt1)
 
     def _merge_case1(self, rt1, rt2, n1, n2):
+        
         rt1.sequence_of_nodes[1:1] = rt2.sequence_of_nodes[1:]
         rt1.length += rt2.length - self.cost_matrix[self.depot.id][n1.id] + self.cost_matrix[n2.id][n1.id]
 
+        if rt2.prefix_loads:
+            offset = rt2.prefix_loads[-1] 
+            rt1.prefix_loads = (
+                rt2.prefix_loads[:] + [offset + load for load in rt1.prefix_loads[1:]]
+            )
+        
+        if rt2.prefix_distances:
+            offset_distance = rt2.prefix_distances[-1]
+
+            distance_between_n1_n2 = self.cost_matrix[n1.id][n2.id]
+            offset_distance += distance_between_n1_n2
+
+            additional_distances = []
+            cumulative_distance = offset_distance
+            for i in range(2, len(rt1.prefix_distances)):
+                prev_node_id = rt1.sequence_of_nodes[len(rt2.sequence_of_nodes) + i - 2].id
+                curr_node_id = rt1.sequence_of_nodes[len(rt2.sequence_of_nodes) + i-1].id
+                cumulative_distance += self.cost_matrix[prev_node_id][curr_node_id]
+                additional_distances.append(cumulative_distance)
+
+            rt1.prefix_distances = rt2.prefix_distances[:] + [offset_distance] + additional_distances
+
     def _merge_case2(self, rt1, rt2, n1, n2):
+        
         rt1.sequence_of_nodes.extend(rt2.sequence_of_nodes[1:])
         rt1.length += rt2.length - self.cost_matrix[self.depot.id][n2.id] + self.cost_matrix[n1.id][n2.id]
 
+        last_load_rt1 = rt1.prefix_loads[-1]
+        rt1.prefix_loads.extend([last_load_rt1 + load for load in rt2.prefix_loads[1:]])
+        
+        last_distance_rt1 = rt1.prefix_distances[-1] if rt1.prefix_distances else 0
+        distance_between_n1_n2 = self.cost_matrix[n1.id][n2.id]
+
+        offset_distance = last_distance_rt1 + distance_between_n1_n2
+        rt1.prefix_distances.extend([offset_distance])
+        additional_distances = []
+        cumulative_distance = offset_distance
+        for i in range(2, len(rt2.sequence_of_nodes)):
+            prev_node = rt2.sequence_of_nodes[i - 1]
+            curr_node = rt2.sequence_of_nodes[i]
+            cumulative_distance += self.cost_matrix[prev_node.id][curr_node.id]
+            additional_distances.append(cumulative_distance)
+
+        rt1.prefix_distances.extend(additional_distances)
 
     def recalculate_savings_for_route(self, updated_route):
         new_edge_nodes = {updated_route.sequence_of_nodes[1], updated_route.sequence_of_nodes[-1]}

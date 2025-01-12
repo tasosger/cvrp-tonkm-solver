@@ -68,6 +68,8 @@ class Route:
         self.capacity = cap
         self.load = 0
         self.length = 0
+        self.prefix_loads = []
+        self.prefix_distances = []
     
     def copy(self):
         new_route = Route(self.sequence_of_nodes[0], self.capacity)
