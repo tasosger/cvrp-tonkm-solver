@@ -430,26 +430,36 @@ class InRouteSwapMove:
         load_after_1_before_2 = self.route.prefix_loads[self.index2-1] - self.route.prefix_loads[self.index1]
 
         if(self.index2 == self.index1 +1):
-            return self.calculate_move_cost_temp()
-        cost = (self.cost_matrix[node_before_1.id][node2.id]  + self.cost_matrix[node2.id][node_after_1.id] 
-                - self.cost_matrix[node_before_1.id][node1.id] - self.cost_matrix[node1.id][node_after_1.id]) * \
-                 (load_after_1_before_2 )
-        cost += (self.route.load - self.route.prefix_loads[self.index2] +8) *(self.cost_matrix[node_before_1.id][node2.id] + \
-                                                                            self.cost_matrix[node2.id][node_after_1.id] +\
-                                                                            self.cost_matrix[node_before_2.id][node1.id] + \
-                                                                            self.cost_matrix[node1.id][node_after_2.id] -\
-                                                                            self.cost_matrix[node_before_1.id][node1.id] - \
-                                                                            self.cost_matrix[node1.id][node_after_1.id] -\
-                                                                            self.cost_matrix[node_before_2.id][node2.id] - \
-                                                                            self.cost_matrix[node2.id][node_after_2.id])
-        cost += (node1.demand) *(self.cost_matrix[node_before_2.id][node1.id] + self.route.prefix_distances[self.index2-1] - \
-                                                                            self.route.prefix_distances[self.index1+1]  + self.cost_matrix[node_before_1.id][node2.id] +\
-                                                                                    self.cost_matrix[node2.id][node_after_1.id] - self.cost_matrix[node_before_1.id][node1.id]) 
-        cost += (node2.demand) * (self.route.prefix_distances[self.index1 - 1] - self.route.prefix_distances[self.index2] + self.cost_matrix[node_before_1.id][node2.id])
+            cost = (self.route.load - self.route.prefix_loads[self.index2] +8) *(self.cost_matrix[node_before_1.id][node2.id] + \
+                                                                                self.cost_matrix[node1.id][node_after_2.id] -\
+                                                                                self.cost_matrix[node_before_1.id][node1.id] -\
+                                                                                self.cost_matrix[node2.id][node_after_2.id]
+                                                                                )
+            cost += (node1.demand) *(self.cost_matrix[node2.id][node1.id] + self.cost_matrix[node_before_1.id][node2.id] - self.cost_matrix[node_before_1.id][node1.id])
+            cost += (node2.demand) * (self.cost_matrix[node_before_1.id][node2.id] - self.cost_matrix[node1.id][node2.id] - self.cost_matrix[node_before_1.id][node1.id])
+            #print(cost, self.calculate_move_cost_temp())
+            return cost
+        else:
+            cost = (self.cost_matrix[node_before_1.id][node2.id]  + self.cost_matrix[node2.id][node_after_1.id] 
+                    - self.cost_matrix[node_before_1.id][node1.id] - self.cost_matrix[node1.id][node_after_1.id]) * \
+                    (load_after_1_before_2 )
+            
+            cost += (self.route.load - self.route.prefix_loads[self.index2] +8) *(self.cost_matrix[node_before_1.id][node2.id] + \
+                                                                                self.cost_matrix[node2.id][node_after_1.id] +\
+                                                                                self.cost_matrix[node_before_2.id][node1.id] + \
+                                                                                self.cost_matrix[node1.id][node_after_2.id] -\
+                                                                                self.cost_matrix[node_before_1.id][node1.id] - \
+                                                                                self.cost_matrix[node1.id][node_after_1.id] -\
+                                                                                self.cost_matrix[node_before_2.id][node2.id] - \
+                                                                                self.cost_matrix[node2.id][node_after_2.id])
+            cost += (node1.demand) *(self.cost_matrix[node_before_2.id][node1.id] + self.route.prefix_distances[self.index2-1] - \
+                                                                                self.route.prefix_distances[self.index1+1]  + self.cost_matrix[node_before_1.id][node2.id] +\
+                                                                                        self.cost_matrix[node2.id][node_after_1.id] - self.cost_matrix[node_before_1.id][node1.id]) 
+            cost += (node2.demand) * (self.route.prefix_distances[self.index1 - 1] - self.route.prefix_distances[self.index2] + self.cost_matrix[node_before_1.id][node2.id])
 
         #problem with coscutive nodes
         
-        return cost
+            return cost
     def apply(self):
         
         self.route.sequence_of_nodes[self.index1], self.route.sequence_of_nodes[self.index2] = \
