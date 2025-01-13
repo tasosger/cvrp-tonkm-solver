@@ -54,6 +54,7 @@ class LocalSearch:
                 move = method()
                 
                 if move:
+                    move.type = method.__name__
                     if best_move is None or move.move_cost < best_move.move_cost:
                         second_best_move = best_move  
                         best_move = move
@@ -61,6 +62,7 @@ class LocalSearch:
                         second_best_move = move  
 
             if best_move:
+                print(f"Iteration {iteration + 1}: Best move type: {best_move.type}, Cost: {best_move.move_cost}")
                 if second_best_move and random.random() < 0.2:
                     second_best_move.apply()
                     new_solution = self.sol
@@ -81,7 +83,7 @@ class LocalSearch:
 
             else:
                 break
-
+            print(best_node.solution.cost)
             iteration += 1
 
         return best_node.solution
@@ -153,7 +155,7 @@ class LocalSearch:
                 for j in range(i + 1, len(route.sequence_of_nodes) - 1):  
                     move = InRouteSwapMove(route, i, j, self.cost_matrix)
 
-                    if  move.move_cost < 0:
+                    if  move.move_cost < -1e-6:
                         if best_move is None or move.move_cost < best_move.move_cost:
                             best_move = move
 
