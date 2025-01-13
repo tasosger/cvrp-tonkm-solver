@@ -62,7 +62,7 @@ class LocalSearch:
                         second_best_move = move  
 
             if best_move:
-                print(f"Iteration {iteration + 1}: Best move type: {best_move.type}, Cost: {best_move.move_cost}")
+                #print(f"Iteration {iteration + 1}: Best move type: {best_move.type}, Cost: {best_move.move_cost}")
                 if second_best_move and random.random() < 0.2:
                     second_best_move.apply()
                     new_solution = self.sol
@@ -83,7 +83,7 @@ class LocalSearch:
 
             else:
                 break
-            print(best_node.solution.cost)
+            #print(best_node.solution.cost)
             iteration += 1
 
         return best_node.solution
