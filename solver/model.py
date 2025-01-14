@@ -26,7 +26,7 @@ class VrpModel:
             self.allNodes.append(cust)
             self.customers.append(cust)
         rows = len(self.allNodes)
-        self.matrix = [[0.0 for x in range(rows)] for y in range(rows)]
+        self.matrix = [[0.0 for x in range(rows+1)] for y in range(rows+1)]
 
         for i in range (0,  len(self.allNodes)):
             for j in range(i, len(self.allNodes)):
@@ -35,7 +35,8 @@ class VrpModel:
                 dist = calc_dist(a,b)
                 self.matrix[i][j] = dist
                 self.matrix[j][i] = dist
-
+        for i in range(0,  len(self.allNodes)):
+            self.matrix[i][0] = 0
 
 class Node:
     def __init__(self, idd, xx, yy, dem):

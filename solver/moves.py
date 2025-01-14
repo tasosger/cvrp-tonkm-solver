@@ -44,10 +44,12 @@ class RelocationMove:
 
     def calculate_move_cost(self):
         
+        
         from_prev_id = (
             self.from_route.sequence_of_nodes[self.from_index - 1].id
             if self.from_index > 0 else self.from_route.sequence_of_nodes[0].id
         )
+
         from_next_id = (
             self.from_route.sequence_of_nodes[self.from_index + 1].id
             if self.from_index + 1 < len(self.from_route.sequence_of_nodes)
@@ -164,17 +166,24 @@ class SwapMove:
         prev_id_1 = (
             self.route1.sequence_of_nodes[self.index1 - 1].id
         )
-        next_id_1 = (
-            self.route1.sequence_of_nodes[self.index1 + 1].id
-        )
+
+        if self.index1 != len(self.route1.sequence_of_nodes)-1:
+            next_id_1 = (
+                self.route1.sequence_of_nodes[self.index1 + 1].id
+            )
+        else:
+            next_id_1= 0
 
         
         prev_id_2 = (
             self.route2.sequence_of_nodes[self.index2 - 1].id
         )
-        next_id_2 = (
-            self.route2.sequence_of_nodes[self.index2+1].id
-        )         
+        if self.index2 != len(self.route2.sequence_of_nodes)-1:
+            next_id_2 = (
+                self.route2.sequence_of_nodes[self.index2+1].id
+            )         
+        else:
+            next_id_2= 0
 
         load_after_1 = self.route1.load - self.route1.prefix_loads[self.index1 ]
         load_after_2 = self.route2.load - self.route2.prefix_loads[self.index2 ]
@@ -360,7 +369,7 @@ class InRouteTwoOptMove:
         node_i = self.route.sequence_of_nodes[self.i]
         node_j = self.route.sequence_of_nodes[self.j]  
         node_before_i = self.route.sequence_of_nodes[self.i - 1]      
-        node_after_j = self.route.sequence_of_nodes[self.j + 1]
+        node_after_j = self.route.sequence_of_nodes[self.j + 1] if self.j + 1 < len(self.route.sequence_of_nodes) -1 else self.route.sequence_of_nodes[0]
         distances =  self.cost_matrix
         load_after_j = self.route.load - self.route.prefix_loads[self.j]
         cost =  (load_after_j +8) * (distances[node_before_i.id][node_j.id] + distances[node_i.id][node_after_j.id] - distances[node_before_i.id][node_i.id] - distances[node_j.id][node_after_j.id])
@@ -437,7 +446,7 @@ class InRouteSwapMove:
         node_after_1 = self.route.sequence_of_nodes[self.index1 + 1]
         node2 = self.route.sequence_of_nodes[self.index2]
         node_before_2 = self.route.sequence_of_nodes[self.index2 -1]
-        node_after_2 = self.route.sequence_of_nodes[self.index2 + 1]
+        node_after_2 = self.route.sequence_of_nodes[self.index2 + 1] if self.index2 < len(self.route.sequence_of_nodes) - 1 else self.route.sequence_of_nodes[0]
         load_after_1_before_2 = self.route.prefix_loads[self.index2-1] - self.route.prefix_loads[self.index1]
 
         if(self.index2 == self.index1 +1):

@@ -100,7 +100,7 @@ class LocalSearch:
                 if from_route == to_route:
                     continue  
 
-                for i in range(1, len(from_route.sequence_of_nodes) - 1): 
+                for i in range(1, len(from_route.sequence_of_nodes) ): 
                     node = from_route.sequence_of_nodes[i]
 
                     for j in range(1, len(to_route.sequence_of_nodes)): 
@@ -121,8 +121,8 @@ class LocalSearch:
                 if from_route == to_route:
                     continue
 
-                for i in range(1, len(from_route.sequence_of_nodes) - 1):
-                    for j in range(1, len(to_route.sequence_of_nodes) - 1):
+                for i in range(1, len(from_route.sequence_of_nodes) ):
+                    for j in range(1, len(to_route.sequence_of_nodes) ):
                         move = SwapMove(from_route, to_route, i, j, self.cost_matrix, self.capacity)
                         if move.is_feasible and move.move_cost < 0 and (best_move is None or move.move_cost < best_move.move_cost):
                             best_move = move
@@ -135,8 +135,8 @@ class LocalSearch:
 
         for route1 in self.sol.routes:
             for route2 in self.sol.routes:
-                for i in range(1, len(route1.sequence_of_nodes) - 1):  
-                    for j in range(1, len(route2.sequence_of_nodes) - 1):  
+                for i in range(1, len(route1.sequence_of_nodes) ):  
+                    for j in range(1, len(route2.sequence_of_nodes) ):  
                         if route1 == route2:  
                             continue
                         
