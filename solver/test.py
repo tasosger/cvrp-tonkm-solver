@@ -123,7 +123,7 @@ def main():
     vrp_model = build_vrp_model(nodes, capacity)
     solver = Solver(vrp_model)
 
-    best =  solver.solve_vns()
+    best =  solver.solve_tabu()
 
     write_solution_to_file(best)
     print("Best Solution Cost:", best.cost)
