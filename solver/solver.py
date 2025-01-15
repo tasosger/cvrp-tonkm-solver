@@ -34,7 +34,7 @@ class Solver:
         return self.sol
 
 
-    def solve_tabu(self, num_iterations=1, tabu_search_iterations=100, tabu_tenure=0):
+    def solve_tabu(self, num_iterations=1, tabu_search_iterations=50, tabu_tenure=0):
         best_sol = None
         self.clark_n_write_helper = ClarkNWrite(self.depot, self.cost_matrix, self.capacity, self.customers, self.sol)
         for _ in range(num_iterations):

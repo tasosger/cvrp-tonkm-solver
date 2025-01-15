@@ -142,7 +142,7 @@ class LocalSearch:
                         
                         move = TwoOptMove(route1, route2, i, j, self.cost_matrix, self.capacity)
 
-                        if move.is_feasible  and move.move_cost < 0 and (best_move is None or move.move_cost < best_move.move_cost):
+                        if move.is_feasible  and move.move_cost < -1e-6 and (best_move is None or move.move_cost < best_move.move_cost):
                             best_move = move
 
         return best_move
@@ -171,7 +171,7 @@ class LocalSearch:
                 for j in range(i + 2, len(route.sequence_of_nodes) - 1):
                     move = InRouteTwoOptMove(route, i, j, self.cost_matrix)
 
-                    if move.move_cost < 0:
+                    if move.move_cost < -1e-6:
                         if best_move is None or move.move_cost < best_move.move_cost:
                             best_move = move
 
