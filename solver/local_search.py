@@ -1,4 +1,4 @@
-from moves import RelocationMove, SwapMove, TwoOptMove, InRouteSwapMove, InRouteTwoOptMove
+from moves import RelocationMove, SwapMove, TwoOptMove, InRouteSwapMove, InRouteTwoOptMove, InRouteReinsertMove
 import math
 import random
 from heapq import heappush, heappop
@@ -44,6 +44,7 @@ class LocalSearch:
             self.two_opt,
             self.swap_within_route,
             self.two_opt_within_route,
+            self.reinsert_within_route
         ]
 
         while iteration < max_iterations:
@@ -152,7 +153,7 @@ class LocalSearch:
 
         for route in self.sol.routes:
             for i in range(1, len(route.sequence_of_nodes) - 2):  
-                for j in range(i + 1, len(route.sequence_of_nodes) - 1):  
+                for j in range(i + 1, len(route.sequence_of_nodes)-1):  
                     move = InRouteSwapMove(route, i, j, self.cost_matrix)
 
                     if  move.move_cost < -1e-6:
@@ -168,7 +169,7 @@ class LocalSearch:
 
         for route in self.sol.routes:
             for i in range(1, len(route.sequence_of_nodes) - 2):  
-                for j in range(i + 2, len(route.sequence_of_nodes) - 1):
+                for j in range(i + 2, len(route.sequence_of_nodes) -1):
                     move = InRouteTwoOptMove(route, i, j, self.cost_matrix)
 
                     if move.move_cost < -1e-6:
@@ -176,3 +177,27 @@ class LocalSearch:
                             best_move = move
 
         return best_move
+    
+
+    def reinsert_within_route(self):
+        
+        best_move = None
+
+        for route in self.sol.routes:
+            # Iterate over all possible nodes to reinsert
+            for from_index in range(1, len(route.sequence_of_nodes) ):
+                for to_index in range(len(route.sequence_of_nodes)-1):
+                    if from_index == to_index or abs(from_index - to_index) == 1:
+                        # Skip invalid reinsertions (same position or adjacent)
+                        continue
+
+                    # Create a move for the reinsertion
+                    move = InRouteReinsertMove(route, from_index, to_index, self.cost_matrix, self.capacity)
+                    
+                    if move.move_cost < -1e-6:
+                        if best_move is None or move.move_cost < best_move.move_cost:
+                            best_move = move
+
+        return best_move
+
+

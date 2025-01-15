@@ -1,6 +1,6 @@
 import random
 from local_search import LocalSearch
-from moves import RelocationMove, SwapMove, TwoOptMove, InRouteSwapMove, InRouteTwoOptMove
+from moves import RelocationMove, SwapMove, TwoOptMove, InRouteSwapMove, InRouteTwoOptMove, InRouteReinsertMove
 import copy
 import random
 
@@ -13,38 +13,23 @@ class TabuSearch:
         self.capacity = capacity
         self.tabu_tenure = tabu_tenure
         self.tabu_arcs = set()
+        self.tabu_nodes = set()
 
     def generate_neighbors(self):
-        neighbors = []
-
-        neighbors.extend(
+        """Generates neighbors by applying all move operators."""
+        return (
+            self.cross_route_reinsert() +
+            self.cross_route_swap() +
+            self.two_opt() +
+            self.two_opt_within_route() +
+            self.swap_within_route() +
             self.cross_route_reinsert()
         )
-        neighbors.extend(
-            self.cross_route_swap()
-        )
-        neighbors.extend(
-            self.two_opt()
-        )
-        neighbors.extend(
-            self.two_opt_within_route()
-        )
-        neighbors.extend(
-            self.swap_within_route()
-        )
-                
-        
-        return neighbors
 
-    def update_tabu_arcs(self, arcs):
-        """
-        Add arcs to the tabu list and maintain the list within the tabu tenure.
-        """
-        self.tabu_arcs.update(arcs)
-        while len(self.tabu_arcs) > self.tabu_tenure:
-            self.tabu_arcs.pop()
+    
 
     def search(self, max_iterations, max_no_improvement=5):
+        """Performs the tabu search optimization."""
         iteration = 0
         no_improvement = 0
 
@@ -57,36 +42,60 @@ class TabuSearch:
 
             best_candidate = None
             for move in neighbors:
-                # Check tabu arcs for the move
-                
-
-                if  move.move_cost < 0 and (best_candidate is None or move.move_cost < best_candidate.move_cost):
-                    best_candidate = move                
-                
-                
+                if not self.is_tabu(move) or move.move_cost + self.sol.cost < self.best_solution.cost:
+                    best_candidate = move
+                    break
 
             if not best_candidate:
                 print("No valid candidate found. Terminating search.")
                 break
-            print(best_candidate.move_cost)
-            # Apply the best move
+
             best_candidate.apply()
-            print(self.current_solution.cost)
-            # Update the current solution
             self.sol.update_solution_cost()
 
-            # Print progress
             print(f"Iteration {iteration}: Best Cost = {self.best_solution.cost}, Current Cost = {self.sol.cost}")
 
-            # Update the best solution if improved
-            
+            if self.sol.cost < self.best_solution.cost:
+                self.best_solution = copy.deepcopy(self.sol)
+                no_improvement = 0
+            else:
+                no_improvement += 1
 
-            
+            self.update_tabu_arcs(best_candidate.affected_arcs)
+            self.update_tabu_nodes(best_candidate.affected_nodes)
+
+            if no_improvement >= max_no_improvement:
+                print("No improvement for several iterations. Terminating search.")
+                break
 
             iteration += 1
 
-        return self.sol
+        return self.best_solution
 
+    
+
+    def is_tabu(self, move):
+        """Checks if the move affects any arcs or nodes currently in the tabu list."""
+        # Check arcs
+        for arc in move.affected_arcs:
+            if arc in self.tabu_arcs:
+                return True
+        
+        for node in move.affected_nodes:
+            if node in self.tabu_nodes:
+                return True
+        
+    def update_tabu_nodes(self, nodes):
+        """Updates the tabu list with new nodes while maintaining the tabu tenure."""
+        self.tabu_nodes.update(nodes)
+        while len(self.tabu_nodes) > self.tabu_tenure:
+            self.tabu_nodes.pop()
+    
+    def update_tabu_arcs(self, arcs):
+        """Updates the tabu list with new arcs while maintaining the tabu tenure."""
+        self.tabu_arcs.update(arcs)
+        while len(self.tabu_arcs) > self.tabu_tenure:
+            self.tabu_arcs.pop()
 
     
 
@@ -155,7 +164,7 @@ class TabuSearch:
 
         for route in self.sol.routes:
             for i in range(1, len(route.sequence_of_nodes) - 2):  
-                for j in range(i + 1, len(route.sequence_of_nodes) - 1):  
+                for j in range(i + 1, len(route.sequence_of_nodes) -1):  
                     move = InRouteSwapMove(route, i, j, self.cost_matrix)
 
                     if  move.move_cost < -1e-6:
@@ -171,10 +180,33 @@ class TabuSearch:
 
         for route in self.sol.routes:
             for i in range(1, len(route.sequence_of_nodes) - 2):  
-                for j in range(i + 2, len(route.sequence_of_nodes) - 1):
+                for j in range(i + 2, len(route.sequence_of_nodes) -1):
                     move = InRouteTwoOptMove(route, i, j, self.cost_matrix)
 
                     if move.move_cost < 0:
                         moves.append(move)
 
         return moves
+
+
+
+    def reinsert_within_route(self):
+        
+        best_move = None
+
+        for route in self.sol.routes:
+            # Iterate over all possible nodes to reinsert
+            for from_index in range(1, len(route.sequence_of_nodes) ):
+                for to_index in range(len(route.sequence_of_nodes)-1):
+                    if from_index == to_index or abs(from_index - to_index) == 1:
+                        # Skip invalid reinsertions (same position or adjacent)
+                        continue
+
+                    # Create a move for the reinsertion
+                    move = InRouteReinsertMove(route, from_index, to_index, self.cost_matrix, self.capacity)
+                    
+                    if move.move_cost < -1e-6:
+                        if best_move is None or move.move_cost < best_move.move_cost:
+                            best_move = move
+
+        return best_move

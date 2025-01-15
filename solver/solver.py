@@ -5,8 +5,8 @@ random.seed(1)
 from clark_n_write import ClarkNWrite
 from local_search import LocalSearch
 from tabu_search import TabuSearch
-
-
+from vns import VNS
+from rvns import RVNS
 
 
 class Solver:
@@ -34,7 +34,7 @@ class Solver:
         return self.sol
 
 
-    def solve_tabu(self, num_iterations=1, tabu_search_iterations=50, tabu_tenure=0):
+    def solve_tabu(self, num_iterations=1, tabu_search_iterations=50, tabu_tenure=30):
         best_sol = None
         self.clark_n_write_helper = ClarkNWrite(self.depot, self.cost_matrix, self.capacity, self.customers, self.sol)
         for _ in range(num_iterations):
@@ -54,6 +54,46 @@ class Solver:
         self.sol = best_sol
         return self.sol
     
+
+    def solve_vns(self, num_iterations=1, vns_iterations=1000, tabu_tenure=30):
+        best_sol = None
+        self.clark_n_write_helper = ClarkNWrite(self.depot, self.cost_matrix, self.capacity, self.customers, self.sol)
+
+        for _ in range(num_iterations):
+            initial_solution = self.clark_n_write_helper.clark_n_write()
+
+            vns_solver = VNS(
+                initial_solution=initial_solution,
+                cost_matrix=self.cost_matrix,
+                capacity=self.capacity
+            )
+            vns_solution = vns_solver.search(max_iterations=vns_iterations)
+
+            if not best_sol or vns_solution.cost < best_sol.cost:
+                best_sol = vns_solution
+
+        self.sol = best_sol
+        return self.sol
+    
+    def solve_rvns(self, num_iterations=1, vns_iterations=1000, tabu_tenure=30):
+        best_sol = None
+        self.clark_n_write_helper = ClarkNWrite(self.depot, self.cost_matrix, self.capacity, self.customers, self.sol)
+
+        for _ in range(num_iterations):
+            initial_solution = self.clark_n_write_helper.clark_n_write()
+
+            vns_solver = RVNS(
+                initial_solution=initial_solution,
+                cost_matrix=self.cost_matrix,
+                capacity=self.capacity
+            )
+            vns_solution = vns_solver.search(max_iterations=vns_iterations)
+
+            if not best_sol or vns_solution.cost < best_sol.cost:
+                best_sol = vns_solution
+
+        self.sol = best_sol
+        return self.sol
 
 
     

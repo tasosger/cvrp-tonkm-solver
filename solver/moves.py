@@ -1,3 +1,5 @@
+import copy
+
 class RelocationMove:
     def __init__(self, node, from_route, to_route, from_index, to_index, capacity, cost_matrix):
         
@@ -7,12 +9,12 @@ class RelocationMove:
         self.from_index = from_index
         self.to_index = to_index
         self.cost_matrix = cost_matrix
-
+        self.affected_nodes = self.calculate_affected_nodes()
         self.is_feasible = (
             (self.from_route.load - self.node.demand >= 0) and
             (self.to_route.load + self.node.demand <= capacity)
         )
-
+        self.affected_arcs = self.calculate_affected_arcs()
         self.move_cost = self.calculate_move_cost() if self.is_feasible else float('inf')
 
     def apply(self):
@@ -41,6 +43,54 @@ class RelocationMove:
     def update_route_distances(self):
         self.from_route.prefix_distances = self._recalculate_prefix_distances(self.from_route)
         self.to_route.prefix_distances = self._recalculate_prefix_distances(self.to_route)
+
+
+    def calculate_affected_arcs(self):
+        affected_arcs = []
+
+        # Arcs removed from the from_route
+        if self.from_index > 0:
+            affected_arcs.append((self.from_route.sequence_of_nodes[self.from_index - 1].id, self.node.id))
+        if self.from_index < len(self.from_route.sequence_of_nodes) - 1:
+            affected_arcs.append((self.node.id, self.from_route.sequence_of_nodes[self.from_index + 1].id))
+
+        # Arc added to reconnect the from_route
+        if self.from_index > 0 and self.from_index < len(self.from_route.sequence_of_nodes) - 1:
+            affected_arcs.append((self.from_route.sequence_of_nodes[self.from_index - 1].id,
+                                  self.from_route.sequence_of_nodes[self.from_index + 1].id))
+
+        # Arcs removed from the to_route
+        if self.to_index > 0:
+            affected_arcs.append((self.to_route.sequence_of_nodes[self.to_index - 1].id,
+                                  self.to_route.sequence_of_nodes[self.to_index].id))
+
+        # Arc added to the to_route
+        if self.to_index > 0:
+            affected_arcs.append((self.to_route.sequence_of_nodes[self.to_index - 1].id, self.node.id))
+        if self.to_index < len(self.to_route.sequence_of_nodes):
+            affected_arcs.append((self.node.id, self.to_route.sequence_of_nodes[self.to_index].id))
+
+        return affected_arcs
+
+    def calculate_affected_nodes(self):
+        affected_nodes = set()
+
+        # Nodes in from_route
+        if self.from_index > 0:
+            affected_nodes.add(self.from_route.sequence_of_nodes[self.from_index - 1].id)
+        affected_nodes.add(self.node.id)
+        if self.from_index < len(self.from_route.sequence_of_nodes) - 1:
+            affected_nodes.add(self.from_route.sequence_of_nodes[self.from_index + 1].id)
+
+        # Nodes in to_route
+        if self.to_index > 0:
+            affected_nodes.add(self.to_route.sequence_of_nodes[self.to_index - 1].id)
+        affected_nodes.add(self.node.id)
+        if self.to_index < len(self.to_route.sequence_of_nodes):
+            affected_nodes.add(self.to_route.sequence_of_nodes[self.to_index].id)
+
+        return list(affected_nodes)
+
 
     def calculate_move_cost(self):
         
@@ -121,6 +171,58 @@ class SwapMove:
             (route2.load - self.node2.demand + self.node1.demand <= capacity)
         )
         self.move_cost = self.calculate_move_cost()
+        self.affected_arcs = self.calculate_affected_arcs()
+        self.affected_nodes = self.calculate_affected_nodes()
+
+    def calculate_affected_nodes(self):
+        affected_nodes = set()
+
+        # Nodes in route1
+        if self.index1 > 0:
+            affected_nodes.add(self.route1.sequence_of_nodes[self.index1 - 1].id)
+        affected_nodes.add(self.node1.id)
+        if self.index1 < len(self.route1.sequence_of_nodes) - 1:
+            affected_nodes.add(self.route1.sequence_of_nodes[self.index1 + 1].id)
+
+        # Nodes in route2
+        if self.index2 > 0:
+            affected_nodes.add(self.route2.sequence_of_nodes[self.index2 - 1].id)
+        affected_nodes.add(self.node2.id)
+        if self.index2 < len(self.route2.sequence_of_nodes) - 1:
+            affected_nodes.add(self.route2.sequence_of_nodes[self.index2 + 1].id)
+
+        return list(affected_nodes)
+
+
+    def calculate_affected_arcs(self):
+        affected_arcs = []
+
+        # Arcs removed from route1
+        if self.index1 > 0:
+            affected_arcs.append((self.route1.sequence_of_nodes[self.index1 - 1].id, self.node1.id))
+        if self.index1 < len(self.route1.sequence_of_nodes) - 1:
+            affected_arcs.append((self.node1.id, self.route1.sequence_of_nodes[self.index1 + 1].id))
+
+        # Arcs added to route1
+        if self.index1 > 0:
+            affected_arcs.append((self.route1.sequence_of_nodes[self.index1 - 1].id, self.node2.id))
+        if self.index1 < len(self.route1.sequence_of_nodes) - 1:
+            affected_arcs.append((self.node2.id, self.route1.sequence_of_nodes[self.index1 + 1].id))
+
+        # Arcs removed from route2
+        if self.index2 > 0:
+            affected_arcs.append((self.route2.sequence_of_nodes[self.index2 - 1].id, self.node2.id))
+        if self.index2 < len(self.route2.sequence_of_nodes) - 1:
+            affected_arcs.append((self.node2.id, self.route2.sequence_of_nodes[self.index2 + 1].id))
+
+        # Arcs added to route2
+        if self.index2 > 0:
+            affected_arcs.append((self.route2.sequence_of_nodes[self.index2 - 1].id, self.node1.id))
+        if self.index2 < len(self.route2.sequence_of_nodes) - 1:
+            affected_arcs.append((self.node1.id, self.route2.sequence_of_nodes[self.index2 + 1].id))
+
+        return affected_arcs
+
 
     def apply(self):
 
@@ -252,8 +354,51 @@ class TwoOptMove:
                 sum(node.demand for node in route1.sequence_of_nodes[i:])
             )
             self.is_feasible = load1_after <= capacity and load2_after <= capacity
-
+        self.affected_arcs = self.calculate_affected_arcs()
         self.move_cost = self.calculate_move_cost()
+        self.affected_nodes = self.calculate_affected_nodes()
+    
+
+    def calculate_affected_nodes(self):
+        affected_nodes = set()
+
+        # Nodes in route1
+        if self.i > 0:
+            affected_nodes.add(self.route1.sequence_of_nodes[self.i - 1].id)
+        for idx in range(self.i, len(self.route1.sequence_of_nodes)):
+            affected_nodes.add(self.route1.sequence_of_nodes[idx].id)
+
+        # Nodes in route2
+        if self.j > 0:
+            affected_nodes.add(self.route2.sequence_of_nodes[self.j - 1].id)
+        for idx in range(self.j, len(self.route2.sequence_of_nodes)):
+            affected_nodes.add(self.route2.sequence_of_nodes[idx].id)
+
+        return list(affected_nodes)
+
+
+    def calculate_affected_arcs(self):
+        affected_arcs = []
+
+        if self.i > 0:
+            affected_arcs.append((self.route1.sequence_of_nodes[self.i - 1].id, self.route1.sequence_of_nodes[self.i].id))
+        if self.i < len(self.route1.sequence_of_nodes) - 1:
+            affected_arcs.append((self.route1.sequence_of_nodes[self.i].id, self.route1.sequence_of_nodes[self.i + 1].id))
+
+        if self.i > 0 and self.i < len(self.route1.sequence_of_nodes) - 1:
+            affected_arcs.append((self.route1.sequence_of_nodes[self.i - 1].id, self.route1.sequence_of_nodes[self.i + 1].id))
+
+        if self.j > 0:
+            affected_arcs.append((self.route2.sequence_of_nodes[self.j - 1].id, self.route2.sequence_of_nodes[self.j].id))
+        if self.j < len(self.route2.sequence_of_nodes) - 1:
+            affected_arcs.append((self.route2.sequence_of_nodes[self.j].id, self.route2.sequence_of_nodes[self.j + 1].id))
+
+        if self.j > 0 and self.j < len(self.route2.sequence_of_nodes) - 1:
+            affected_arcs.append((self.route2.sequence_of_nodes[self.j - 1].id, self.route2.sequence_of_nodes[self.j + 1].id))
+
+        return affected_arcs
+
+
 
     def apply(self):
         
@@ -362,8 +507,44 @@ class InRouteTwoOptMove:
         self.i = i
         self.j = j
         self.cost_matrix = cost_matrix
-
+        self.affected_nodes = self.calculate_affected_nodes()
         self.move_cost = self.calculate_move_cost()
+        self.affected_arcs = self.calculate_affected_arcs()
+
+
+    def calculate_affected_nodes(self):
+        affected_nodes = set()
+
+        # Nodes in route
+        if self.i > 0:
+            affected_nodes.add(self.route.sequence_of_nodes[self.i - 1].id)
+        for idx in range(self.i, self.j + 1):
+            affected_nodes.add(self.route.sequence_of_nodes[idx].id)
+        if self.j < len(self.route.sequence_of_nodes) - 1:
+            affected_nodes.add(self.route.sequence_of_nodes[self.j + 1].id)
+
+        return list(affected_nodes)
+
+
+    def calculate_affected_arcs(self):
+        affected_arcs = []
+
+        # Arcs removed within the route
+        if self.i > 0:
+            affected_arcs.append((self.route.sequence_of_nodes[self.i - 1].id, self.route.sequence_of_nodes[self.i].id))
+        if self.j < len(self.route.sequence_of_nodes) - 1:
+            affected_arcs.append((self.route.sequence_of_nodes[self.j].id, self.route.sequence_of_nodes[self.j + 1].id))
+
+        # Arcs added after the move
+        if self.i > 0:
+            affected_arcs.append((self.route.sequence_of_nodes[self.i - 1].id, self.route.sequence_of_nodes[self.j].id))
+        if self.j < len(self.route.sequence_of_nodes) - 1:
+            affected_arcs.append((self.route.sequence_of_nodes[self.i].id, self.route.sequence_of_nodes[self.j + 1].id))
+
+        return affected_arcs
+
+
+
 
     def calculate_move_cost(self):
         node_i = self.route.sequence_of_nodes[self.i]
@@ -381,7 +562,8 @@ class InRouteTwoOptMove:
         cost += node_j.demand * (distances[node_before_i.id][node_j.id] - (self.route.prefix_distances[self.j] - self.route.prefix_distances[self.i]) -distances[node_before_i.id][node_i.id] )
         
         if abs(cost - self.calculate_move_cost_temp()) > 1e-6:
-                exit()
+                return self.calculate_move_cost_temp()
+                pass
         return cost
     
     def calculate_move_cost_temp(self):
@@ -421,14 +603,65 @@ class InRouteTwoOptMove:
             prefix_distances.append(cumulative_dist)
         return prefix_distances
 
+
+
 class InRouteSwapMove:
     def __init__(self, route, index1, index2, cost_matrix):
         self.route = route
         self.index1 = index1
         self.index2 = index2
         self.cost_matrix = cost_matrix
-
+        self.affected_nodes = self.calculate_affected_nodes()
         self.move_cost = self.calculate_move_cost()
+        self.affected_arcs = self.calculate_affected_arcs()
+
+
+    def calculate_affected_nodes(self):
+        affected_nodes = set()
+
+        # Add the swapped nodes
+        affected_nodes.add(self.route.sequence_of_nodes[self.index1].id)
+        affected_nodes.add(self.route.sequence_of_nodes[self.index2].id)
+
+        # Add neighbors of swapped nodes
+        if self.index1 > 0:
+            affected_nodes.add(self.route.sequence_of_nodes[self.index1 - 1].id)
+        if self.index1 < len(self.route.sequence_of_nodes) - 1:
+            affected_nodes.add(self.route.sequence_of_nodes[self.index1 + 1].id)
+
+        if self.index2 > 0:
+            affected_nodes.add(self.route.sequence_of_nodes[self.index2 - 1].id)
+        if self.index2 < len(self.route.sequence_of_nodes) - 1:
+            affected_nodes.add(self.route.sequence_of_nodes[self.index2 + 1].id)
+
+        return list(affected_nodes)
+
+
+    def calculate_affected_arcs(self):
+        affected_arcs = []
+
+        # Arcs removed due to the swap
+        if self.index1 > 0:
+            affected_arcs.append((self.route.sequence_of_nodes[self.index1 - 1].id, self.route.sequence_of_nodes[self.index1].id))
+        if self.index1 < len(self.route.sequence_of_nodes) - 1:
+            affected_arcs.append((self.route.sequence_of_nodes[self.index1].id, self.route.sequence_of_nodes[self.index1 + 1].id))
+        if self.index2 > 0:
+            affected_arcs.append((self.route.sequence_of_nodes[self.index2 - 1].id, self.route.sequence_of_nodes[self.index2].id))
+        if self.index2 < len(self.route.sequence_of_nodes) - 1:
+            affected_arcs.append((self.route.sequence_of_nodes[self.index2].id, self.route.sequence_of_nodes[self.index2 + 1].id))
+
+        # Arcs added due to the swap
+        if self.index1 > 0:
+            affected_arcs.append((self.route.sequence_of_nodes[self.index1 - 1].id, self.route.sequence_of_nodes[self.index2].id))
+        if self.index1 < len(self.route.sequence_of_nodes) - 1:
+            affected_arcs.append((self.route.sequence_of_nodes[self.index2].id, self.route.sequence_of_nodes[self.index1 + 1].id))
+        if self.index2 > 0:
+            affected_arcs.append((self.route.sequence_of_nodes[self.index2 - 1].id, self.route.sequence_of_nodes[self.index1].id))
+        if self.index2 < len(self.route.sequence_of_nodes) - 1:
+            affected_arcs.append((self.route.sequence_of_nodes[self.index1].id, self.route.sequence_of_nodes[self.index2 + 1].id))
+
+        return affected_arcs
+
 
     def calculate_move_cost_temp(self):
         temp_route = self.route.copy()
@@ -442,14 +675,12 @@ class InRouteSwapMove:
         return cost_after - cost_before
 
     def calculate_move_cost(self):
-        if(self.index1 >= self.index2):
-            exit()
         node1 = self.route.sequence_of_nodes[self.index1]
         node_before_1 = self.route.sequence_of_nodes[self.index1 -1]
         node_after_1 = self.route.sequence_of_nodes[self.index1 + 1]
         node2 = self.route.sequence_of_nodes[self.index2]
         node_before_2 = self.route.sequence_of_nodes[self.index2 -1]
-        node_after_2 = self.route.sequence_of_nodes[self.index2 + 1] if self.index2 < len(self.route.sequence_of_nodes) - 1  else self.route.sequence_of_nodes[0]
+        node_after_2 = self.route.sequence_of_nodes[self.index2 + 1] if self.index2 < len(self.route.sequence_of_nodes) -1 else self.route.sequence_of_nodes[0]
         load_after_1_before_2 = self.route.prefix_loads[self.index2-1] - self.route.prefix_loads[self.index1]
 
         if(self.index2 == self.index1 +1):
@@ -480,7 +711,8 @@ class InRouteSwapMove:
             cost += (node2.demand) * (self.route.prefix_distances[self.index1 - 1] - self.route.prefix_distances[self.index2] + self.cost_matrix[node_before_1.id][node2.id])
 
             if abs(cost - self.calculate_move_cost_temp()) > 1e-6:
-                exit()
+                #print(cost , self.calculate_move_cost_temp(), self.index1, self.index2, len(self.route.sequence_of_nodes), self.route.sequence_of_nodes, node2.id)
+                return self.calculate_move_cost_temp()
         
             return cost
         
@@ -511,3 +743,79 @@ class InRouteSwapMove:
             cumulative_dist += self.cost_matrix[prev_node.id][current_node.id]
             prefix_distances.append(cumulative_dist)
         return prefix_distances
+
+
+
+
+class InRouteReinsertMove:
+    def __init__(self, route, from_index, to_index, cost_matrix, capacity):
+        self.route = route
+        self.from_index = from_index
+        self.to_index = to_index
+        self.cost_matrix = cost_matrix
+        self.capacity = capacity
+
+        self.is_feasible = self.check_feasibility()
+        self.affected_arcs = self.calculate_affected_arcs()
+        self.affected_nodes = self.calculate_affected_nodes()
+        self.move_cost = self.calculate_move_cost()
+
+    def check_feasibility(self):
+        # Feasibility is always satisfied for in-route reinsert as capacity is unchanged.
+        return True
+
+    def calculate_affected_arcs(self):
+        affected_arcs = []
+
+        # Arcs removed
+        if self.from_index > 0:
+            affected_arcs.append((self.route.sequence_of_nodes[self.from_index - 1].id,
+                                  self.route.sequence_of_nodes[self.from_index].id))
+        if self.from_index < len(self.route.sequence_of_nodes) - 1:
+            affected_arcs.append((self.route.sequence_of_nodes[self.from_index].id,
+                                  self.route.sequence_of_nodes[self.from_index + 1].id))
+
+        # Arcs added
+        if self.to_index > 0:
+            affected_arcs.append((self.route.sequence_of_nodes[self.to_index - 1].id,
+                                  self.route.sequence_of_nodes[self.from_index].id))
+        if self.to_index < len(self.route.sequence_of_nodes) - 1:
+            affected_arcs.append((self.route.sequence_of_nodes[self.from_index].id,
+                                  self.route.sequence_of_nodes[self.to_index].id))
+
+        return affected_arcs
+
+    def calculate_affected_nodes(self):
+        affected_nodes = set()
+
+        affected_nodes.add(self.route.sequence_of_nodes[self.from_index].id)
+        if self.from_index > 0:
+            affected_nodes.add(self.route.sequence_of_nodes[self.from_index - 1].id)
+        if self.from_index < len(self.route.sequence_of_nodes) - 1:
+            affected_nodes.add(self.route.sequence_of_nodes[self.from_index + 1].id)
+        if self.to_index > 0:
+            affected_nodes.add(self.route.sequence_of_nodes[self.to_index - 1].id)
+        if self.to_index < len(self.route.sequence_of_nodes) - 1:
+            affected_nodes.add(self.route.sequence_of_nodes[self.to_index].id)
+
+        return list(affected_nodes)
+
+    def calculate_move_cost(self):
+        
+        temp_route = copy.deepcopy(self.route)
+
+        # Simulate the move
+        node = temp_route.sequence_of_nodes.pop(self.from_index)
+        temp_route.sequence_of_nodes.insert(self.to_index, node)
+
+        # Calculate the cost difference
+        original_cost = self.route.calculate_total_route_cost(self.cost_matrix)
+        new_cost = temp_route.calculate_total_route_cost(self.cost_matrix)
+        return new_cost - original_cost
+    def apply(self):
+        # Remove node and reinsert at new position
+        node = self.route.sequence_of_nodes.pop(self.from_index)
+        self.route.sequence_of_nodes.insert(self.to_index, node)
+
+        # Update the route cost
+        self.route.cost = self.route.calculate_total_route_cost(self.cost_matrix)
