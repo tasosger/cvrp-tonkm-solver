@@ -4,7 +4,7 @@ from moves import RelocationMove, SwapMove, TwoOptMove, InRouteSwapMove, InRoute
 from tabu_search import TabuSearch
 
 class VNS:
-    def __init__(self, initial_solution, cost_matrix, capacity, max_iterations=10, max_neighborhood_size=6):
+    def __init__(self, initial_solution, cost_matrix, capacity, max_iterations=1, max_neighborhood_size=1):
         """
         Initialize the VNS algorithm.
         :param initial_solution: Initial solution for the problem.
@@ -26,9 +26,11 @@ class VNS:
         """
         iteration = 0
         while iteration < self.max_iterations:
+            print(iteration)
             k = 1  # Start with the first neighborhood structure
 
             while k <= self.max_neighborhood_size:
+                print('k',k)
                 # Step 1: Shaking - Apply a random perturbation
                 perturbed_solution = self.shaking(self.best_solution, k)
 
@@ -38,7 +40,7 @@ class VNS:
                 # Step 3: Acceptance Criterion
                 if improved_solution.cost < self.best_solution.cost:
                     self.best_solution = improved_solution
-                    k = 1  # Reset neighborhood index if improvement is found
+                    k += 1  # Reset neighborhood index if improvement is found
                 else:
                     k += 1  # Move to the next neighborhood
 
