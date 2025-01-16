@@ -59,6 +59,7 @@ class RelocationMove:
             affected_arcs.append((self.from_route.sequence_of_nodes[self.from_index - 1].id,
                                   self.from_route.sequence_of_nodes[self.from_index + 1].id))
 
+
         # Arcs removed from the to_route
         if self.to_index > 0:
             affected_arcs.append((self.to_route.sequence_of_nodes[self.to_index - 1].id,
@@ -102,7 +103,7 @@ class RelocationMove:
 
         from_next_id = (
             self.from_route.sequence_of_nodes[self.from_index + 1].id
-            if self.from_index + 1 < len(self.from_route.sequence_of_nodes)
+            if self.from_index +1  < len(self.from_route.sequence_of_nodes)
             else self.from_route.sequence_of_nodes[0].id
         )
 
@@ -121,17 +122,39 @@ class RelocationMove:
 
         load_after_n = self.from_route.load - self.from_route.prefix_loads[self.from_index]
         load_after_n_to = self.to_route.load - self.to_route.prefix_loads[self.to_index-1]
-        
-        cost_effect_from_route =   (load_after_n + 8) * (self.cost_matrix[from_prev_id][from_next_id] - self.cost_matrix[from_prev_id][self.node.id] - 
-                                                        self.cost_matrix[self.node.id][from_next_id])  - self.node.demand * self.from_route.prefix_distances[self.from_index]
-        cost_effect_to_route =   (load_after_n_to + 8) * (self.cost_matrix[to_prev_id][self.node.id] + self.cost_matrix[self.node.id][to_next_id] - 
-                                                        self.cost_matrix[to_prev_id][to_next_id]) + self.node.demand * (self.to_route.prefix_distances[self.to_index - 1] + self.cost_matrix[to_prev_id][self.node.id])
-       
+        if from_next_id !=0:
+            cost_effect_from_route =   (load_after_n + 8) * (self.cost_matrix[from_prev_id][from_next_id] - self.cost_matrix[from_prev_id][self.node.id] - 
+                                                            self.cost_matrix[self.node.id][from_next_id])  - self.node.demand * self.from_route.prefix_distances[self.from_index]
+        else:
+            cost_effect_from_route =   - self.node.demand * self.from_route.prefix_distances[self.from_index] - 8 * self.cost_matrix[from_prev_id][self.node.id]
+        if to_next_id !=0:
+            cost_effect_to_route =   (load_after_n_to + 8) * (self.cost_matrix[to_prev_id][self.node.id] + self.cost_matrix[self.node.id][to_next_id] - 
+                                                            self.cost_matrix[to_prev_id][to_next_id]) + self.node.demand * (self.to_route.prefix_distances[self.to_index - 1] + self.cost_matrix[to_prev_id][self.node.id])
+        else:
+            cost_effect_to_route =  self.node.demand * (self.to_route.prefix_distances[self.to_index - 1] + self.cost_matrix[to_prev_id][self.node.id]) +8 *self.cost_matrix[to_prev_id][self.node.id]
         total_cost_change = cost_effect_to_route + cost_effect_from_route
-           
+        
         return total_cost_change
 
+    def calculate_move_cost_temp(self):
+        
+        temp_from_route = self.from_route.copy()
+        temp_to_route = self.to_route.copy()
 
+        removed_node = temp_from_route.sequence_of_nodes.pop(self.from_index)
+
+        temp_to_route.sequence_of_nodes.insert(self.to_index, removed_node)
+
+        temp_from_route.update_route_customers()
+        temp_to_route.update_route_customers()
+
+        from_cost_before = self.from_route.calculate_total_route_cost(self.cost_matrix)
+        from_cost_after = temp_from_route.calculate_total_route_cost(self.cost_matrix)
+
+        to_cost_before = self.to_route.calculate_total_route_cost(self.cost_matrix)
+        to_cost_after = temp_to_route.calculate_total_route_cost(self.cost_matrix)
+
+        return (from_cost_after - from_cost_before) + (to_cost_after - to_cost_before)
     
     def _recalculate_prefix_loads(self,route):
         cumulative_load = 0
@@ -193,7 +216,27 @@ class SwapMove:
 
         return list(affected_nodes)
 
+    def calculate_move_cost_temp(self):
+        node1 = self.route1.sequence_of_nodes[self.index1]
+        node2 = self.route2.sequence_of_nodes[self.index2]
 
+        from_prev_id1 = self.route1.sequence_of_nodes[self.index1 - 1].id \
+            if self.index1 > 0 else self.route1.sequence_of_nodes[0].id
+        from_next_id1 = self.route1.sequence_of_nodes[self.index1 + 1].id \
+            if self.index1 + 1 < len(self.route1.sequence_of_nodes) else self.route1.sequence_of_nodes[-1].id
+
+        to_prev_id2 = self.route2.sequence_of_nodes[self.index2 - 1].id \
+            if self.index2 > 0 else self.route2.sequence_of_nodes[0].id
+        to_next_id2 = self.route2.sequence_of_nodes[self.index2 + 1].id \
+            if self.index2 + 1 < len(self.route2.sequence_of_nodes) else self.route2.sequence_of_nodes[-1].id
+
+        cost1_before = self.cost_matrix[from_prev_id1][node1.id] + self.cost_matrix[node1.id][from_next_id1]
+        cost1_after = self.cost_matrix[from_prev_id1][node2.id] + self.cost_matrix[node2.id][from_next_id1]
+
+        cost2_before = self.cost_matrix[to_prev_id2][node2.id] + self.cost_matrix[node2.id][to_next_id2]
+        cost2_after = self.cost_matrix[to_prev_id2][node1.id] + self.cost_matrix[node1.id][to_next_id2]
+
+        return (cost1_after - cost1_before) + (cost2_after - cost2_before)
     def calculate_affected_arcs(self):
         affected_arcs = []
 
@@ -295,6 +338,11 @@ class SwapMove:
         cost_effect_from_route_2 =   (load_after_2+ 8) * (self.cost_matrix[prev_id_2][self.node1.id] + self.cost_matrix[self.node1.id][next_id_2] - self.cost_matrix[prev_id_2][self.node2.id] - 
                                                         self.cost_matrix[self.node2.id][next_id_2])  - self.node2.demand * self.route2.prefix_distances[self.index2] + self.node1.demand*(self.route2.prefix_distances[self.index2 - 1] + self.cost_matrix[prev_id_2][self.node1.id])
        
+
+
+        if abs(cost_effect_from_route_1 + cost_effect_from_route_2 - self.calculate_move_cost_temp()) > 0:
+                
+                return self.calculate_move_cost_temp()
         return cost_effect_from_route_1 + cost_effect_from_route_2
 
         
@@ -358,6 +406,18 @@ class TwoOptMove:
         self.move_cost = self.calculate_move_cost()
         self.affected_nodes = self.calculate_affected_nodes()
     
+
+    def calculate_move_cost_temp(self):
+        nodes = self.route.sequence_of_nodes
+
+        prev_id = nodes[self.i - 1].id if self.i > 0 else nodes[0].id
+        next_id = nodes[self.j + 1].id if self.j + 1 < len(nodes) else nodes[-1].id
+
+        prev_cost = self.cost_matrix[prev_id][nodes[self.i].id] + self.cost_matrix[nodes[self.j].id][next_id]
+        new_cost = self.cost_matrix[prev_id][nodes[self.j].id] + self.cost_matrix[nodes[self.i].id][next_id]
+
+        return new_cost - prev_cost
+
 
     def calculate_affected_nodes(self):
         affected_nodes = set()
@@ -443,7 +503,9 @@ class TwoOptMove:
                                                                                     (self.route2.load - self.route2.prefix_loads[self.j-1] + 8 ) * \
                                                                                     (self.route2.prefix_distances[self.j])    
         
-        
+        if abs(cost_route_1 + cost_route_2   - self.calculate_move_cost_temp()) > 0:
+                
+                return self.calculate_move_cost_temp()
         return cost_route_1 + cost_route_2     
         
     
