@@ -864,36 +864,33 @@ class InRouteReinsertMove:
         return list(affected_nodes)
 
     def calculate_move_cost(self):
-        '''
+        
         node = self.route.sequence_of_nodes[self.from_index]
         node_after_from = self.route.sequence_of_nodes[self.from_index + 1] if self.from_index + 1 < len(self.route.sequence_of_nodes) else self.route.sequence_of_nodes[0]
         cost =0
         node_before_from = self.route.sequence_of_nodes[self.from_index -1] 
-        node_after_to = self.route.sequence_of_nodes[self.to_index] if self.to_index < len(self.route.sequence_of_nodes) else self.route.sequence_of_nodes[0]
-        node_before_to = self.route.sequence_of_nodes[self.to_index -1]
+        node_after_to = self.route.sequence_of_nodes[self.to_index +1] if self.to_index +1 < len(self.route.sequence_of_nodes) else self.route.sequence_of_nodes[0]
+        node_before_to = self.route.sequence_of_nodes[self.to_index]
         if self.from_index > self.to_index and node_after_from.id !=0:
             load_after_1 = self.route.load -  self.route.prefix_loads[self.from_index]
             cost = (load_after_1 + 8)* (self.cost_matrix[node_before_from.id][node_after_from.id] + self.cost_matrix[node_before_to.id][node.id] + self.cost_matrix[node.id][node_after_to.id] - self.cost_matrix[node_before_from.id][node.id] - self.cost_matrix[node.id][node_after_from.id] - self.cost_matrix[node_before_to.id][node_after_to.id])
             cost += node.demand * (self.cost_matrix[node_before_to.id][node.id] -(self.route.prefix_distances[self.from_index] - self.route.prefix_distances[self.to_index -1]))
             load_after_to_before_from = self.route.prefix_loads[self.from_index] - self.route.prefix_loads[self.to_index-1]
             cost += load_after_to_before_from * (self.cost_matrix[node_before_to.id][node.id] + (self.cost_matrix[node_after_to.id][node.id] - self.cost_matrix[node_before_to.id][node_after_to.id]))
+            cost =  self.calculate_move_cost_temp()
         elif self.from_index < self.to_index and node_after_from.id !=0:
-            load_after_to = self.route.load -  self.route.prefix_loads[self.to_index  -1]
-            load_after_from_before_to = self.route.prefix_loads[self.to_index-1] - self.route.prefix_loads[self.from_index]
+            load_after_to = self.route.load -  self.route.prefix_loads[self.to_index  ]
+            load_after_from_before_to = self.route.prefix_loads[self.to_index] - self.route.prefix_loads[self.from_index]
+            
             cost  = load_after_from_before_to * (self.cost_matrix[node_before_from.id][node_after_from.id] - self.cost_matrix[node_before_from.id][node.id] - self.cost_matrix[node.id][node_after_from.id])
             cost += (load_after_to +8)* (self.cost_matrix[node_before_from.id][node_after_from.id]+ self.cost_matrix[node_before_to.id][node.id] + self.cost_matrix[node.id][node_after_to.id] - self.cost_matrix[node_before_to.id][node_after_to.id]- self.cost_matrix[node_before_from.id][node.id] - self.cost_matrix[node.id][node_after_from.id])
             cost += node.demand * (self.cost_matrix[node_before_from.id][node_after_from.id]+ self.cost_matrix[node_before_to.id][node.id]  - self.cost_matrix[node_before_from.id][node.id] + self.route.prefix_distances[self.to_index-1] - self.route.prefix_distances[self.from_index+1])
-            if abs(self.calculate_move_cost_temp() -cost) > 1e-6:
-                print('error', cost, self.calculate_move_cost_temp(), self.from_index, self.to_index, self.route.sequence_of_nodes)
-                for i in range(0, len(self.route.sequence_of_nodes)-1):
-                    print(self.cost_matrix[self.route.sequence_of_nodes[i].id][self.route.sequence_of_nodes[i+1].id])
-                
-                exit()
+            cost = self.calculate_move_cost_temp()
         elif self.from_index == self.to_index:
             cost = 0
         else:
-            '''
-        cost = self.calculate_move_cost_temp()
+            
+            cost = self.calculate_move_cost_temp()
 
             
         
@@ -907,7 +904,6 @@ class InRouteReinsertMove:
         # Simulate the move
         node = temp_route.sequence_of_nodes.pop(self.from_index)
         temp_route.sequence_of_nodes.insert(self.to_index, node)
-
         # Calculate the cost difference
         original_cost = self.route.calculate_total_route_cost(self.cost_matrix)
         new_cost = temp_route.calculate_total_route_cost(self.cost_matrix)
