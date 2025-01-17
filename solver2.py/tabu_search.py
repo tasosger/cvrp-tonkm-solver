@@ -3,7 +3,7 @@ import random
 from moves import RelocationMove, SwapMove, TwoOptMove, InRouteSwapMove, InRouteTwoOptMove, InRouteReinsertMove
 
 class TabuSearch:
-    def __init__(self, initial_solution, cost_matrix, capacity, tabu_tenure=10, max_iterations=90, lambda_factor=0.1):
+    def __init__(self, initial_solution, cost_matrix, capacity, tabu_tenure=10, max_iterations=107, lambda_factor=0.3):
        
         self.solution = initial_solution
         self.cost_matrix = cost_matrix
