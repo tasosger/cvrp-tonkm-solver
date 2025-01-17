@@ -24,7 +24,7 @@ class VNS:
 
                 if improved_solution.cost < self.best_solution.cost:
                     self.best_solution = improved_solution
-                    k += 1 #so vns is stopped after this due to time constraints
+                    k += 1 #so vns is stopped after this due to time constraints, it should be k=1
                 else:
                     k += 1 
 
