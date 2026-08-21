@@ -34,6 +34,26 @@ solution = Solver(model).solve(algorithm="vns")
 print(solution.cost)
 ```
 
+Algorithms can also be chained into a pipeline — each stage refines the
+previous stage's solution, PyTorch `nn.Sequential`-style — instead of
+picking just one:
+
+```
+python -m vrp_solver --instance data/instance_300.txt --pipeline local_search,tabu,vns --validate
+```
+
+```python
+from vrp_solver import Solver, Stage
+from vrp_solver.io_utils import load_model
+
+model = load_model("data/instance_300.txt")
+solution = Solver(model).solve(algorithm=[
+    "local_search",                                     # cheap descent first
+    Stage("tabu", tabu_tenure=20, max_iterations=200),     # then a configured stage
+    "vns",                                               # then a final polish
+])
+```
+
 ## Instance file format
 
 See `data/instance_300.txt` (300 randomly generated customers):
@@ -60,8 +80,9 @@ vrp_solver/
     algorithms/           One module per improvement algorithm; each exposes
                             `run(initial_solution, cost_matrix, capacity, **kwargs) -> Solution`
                             and is registered in `algorithms/__init__.py`'s ALGORITHMS dict
-    solver.py             Solver: construct, then dispatch to the chosen algorithm
-    io_utils.py             Instance file parsing + solution file writing
+    pipeline.py              Stage/Pipeline: chain algorithms in sequence (nn.Sequential-style)
+    solver.py                 Solver: construct, then run the chosen algorithm or pipeline
+    io_utils.py                 Instance file parsing + solution file writing
     validation.py             Feasibility/consistency checks
     visualization.py           Optional matplotlib route-map plotting
     __main__.py                 CLI (`python -m vrp_solver`)
@@ -97,6 +118,39 @@ All algorithm-specific tuning knobs (`tabu_tenure`, `max_iterations`,
 each algorithm's `run()`, forwarded through `Solver.solve(**kwargs)`; the CLI
 exposes the common ones (`--max-iterations`, `--tabu-tenure`).
 
+## Pipelines: chaining algorithms
+
+Every algorithm's `run(solution, cost_matrix, capacity, **kwargs) -> Solution`
+signature means one stage's output is exactly the next stage's input, so
+`vrp_solver.pipeline.Pipeline` can chain any number of them — like stacking
+layers in a `torch.nn.Sequential`. Pass `Solver.solve(algorithm=...)` a list
+instead of a single name:
+
+```python
+solver.solve(algorithm=["local_search", "tabu", "vns"])
+```
+
+Wrap a stage in `Stage(name, **kwargs)` when it needs non-default settings:
+
+```python
+from vrp_solver import Stage
+
+solver.solve(algorithm=[
+    "local_search",
+    Stage("tabu", tabu_tenure=20, max_iterations=200),
+    Stage("vns", max_no_improvement=10),
+])
+```
+
+A `Stage`'s `algorithm` doesn't have to be a registered name either — any
+`run(solution, cost_matrix, capacity, **kwargs) -> Solution` callable works,
+so you can drop in a one-off algorithm without registering it. Per-call
+`algorithm_kwargs` on `Solver.solve` only apply to a single named algorithm
+(there'd be no way to tell which stage they belonged to in a pipeline) — put
+per-stage kwargs on each `Stage` instead. CLI equivalent: `--pipeline
+local_search,tabu,vns` (stages use their default kwargs; use the Python API
+for per-stage tuning).
+
 ## Adding a new algorithm
 
 1. Create `algorithms/my_algorithm.py` exposing
@@ -104,8 +158,8 @@ exposes the common ones (`--max-iterations`, `--tabu-tenure`).
    (reuse the move classes in `moves.py` — you don't need to reinvent them).
 2. Register it in `algorithms/__init__.py`'s `ALGORITHMS` dict.
 
-That's it — it's immediately selectable via `--algorithm my_algorithm` and
-`Solver.solve(algorithm="my_algorithm")`.
+That's it — it's immediately selectable via `--algorithm my_algorithm`,
+`Solver.solve(algorithm="my_algorithm")`, and as a pipeline stage.
 
 ## Testing
 

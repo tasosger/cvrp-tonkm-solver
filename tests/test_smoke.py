@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from vrp_solver.algorithms import ALGORITHMS
 from vrp_solver.io_utils import build_vrp_model
 from vrp_solver.model import Node
+from vrp_solver.pipeline import Stage
 from vrp_solver.solver import Solver
 from vrp_solver.validation import validate_solution
 
@@ -59,10 +60,37 @@ def test_rvns():
     _run_algorithm("rvns")
 
 
+def test_pipeline_chains_algorithms():
+    model = build_tiny_model()
+    solver = Solver(model)
+    solution = solver.solve(
+        algorithm=["local_search", Stage("tabu", max_iterations=20), "vns"],
+        num_iterations=1,
+    )
+
+    is_valid, message = validate_solution(model, solution)
+    assert is_valid, f"pipeline: {message}"
+
+
+def test_pipeline_rejects_ambiguous_kwargs():
+    model = build_tiny_model()
+    solver = Solver(model)
+    try:
+        solver.solve(algorithm=["local_search", "tabu"], max_iterations=20)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError for algorithm_kwargs with a pipeline")
+
+
 def main():
     for name in ALGORITHMS:
         _run_algorithm(name)
         print(f"OK: {name}")
+    test_pipeline_chains_algorithms()
+    print("OK: pipeline")
+    test_pipeline_rejects_ambiguous_kwargs()
+    print("OK: pipeline rejects ambiguous kwargs")
     print("All algorithms produced feasible solutions.")
 
 
