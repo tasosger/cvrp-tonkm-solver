@@ -1,0 +1,5 @@
+# Required by the adaptive_tabu algorithm (algorithms/adaptive_tabu_search.py).
+numpy
+
+# Optional: only needed for vrp_solver.visualization / the --plot CLI flag.
+matplotlib
