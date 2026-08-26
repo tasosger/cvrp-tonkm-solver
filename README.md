@@ -81,6 +81,10 @@ vrp_solver/
     algorithms/           One module per improvement algorithm; each exposes
                             `run(initial_solution, cost_matrix, capacity, **kwargs) -> Solution`
                             and is registered in `algorithms/__init__.py`'s ALGORITHMS dict
+    algorithms/lns.py         Large Neighborhood Search: edge-based removal +
+                                regret-k reinsertion, optional SA acceptance
+    algorithms/penalty_tabu_search.py  Tabu Search with GLS-style arc-penalty
+                                          move selection (subclasses tabu_search.py)
     pipeline.py              Stage/Pipeline: chain algorithms in sequence (nn.Sequential-style)
     solver.py                 Solver: construct, then run the chosen algorithm or pipeline
     io_utils.py                 Instance file parsing + solution file writing
@@ -101,6 +105,9 @@ every algorithm at once:
 | `InRouteTwoOptMove` | reverse a segment within one route |
 | `InRouteSwapMove` | swap two nodes within one route |
 | `InRouteReinsertMove` | move a node to a different position within one route |
+
+(`lns` is the one exception: it doesn't search these neighborhoods at all —
+it directly removes and reinserts customers between routes. See below.)
 
 ## Construction: an incremental, ton-km-aware Clarke-Wright
 
@@ -133,13 +140,17 @@ Select with `--algorithm` (CLI) or `Solver.solve(algorithm=...)`:
 | `local_search` | VND-style steepest descent: each iteration takes the best move across all 6 neighborhoods; occasionally (20%) takes the second-best instead, as light diversification. |
 | `tabu` | Tabu Search: forbids moves touching recently-changed nodes/arcs for a tenure that adapts to search progress, with an aspiration criterion and periodic random perturbation when stuck. |
 | `adaptive_tabu` | A more elaborate, reactive Tabu Search: learns per-neighborhood operator weights from move success rate, keeps a short memory of good-but-unchosen moves to revisit, and falls back to plain `tabu` after `switch_depth` iterations without improvement. |
+| `penalty_tabu` | Tabu Search with Guided-Local-Search-style move selection: reuses `tabu`'s neighborhoods and tabu bookkeeping, but scores each admissible candidate by move cost plus a decaying per-arc usage penalty (`lambda_factor`), and takes the best-scoring one instead of the first admissible one. Frequently-reused arcs get progressively less attractive even while still allowed. |
 | `vns` | Variable Neighborhood Search: cycles the 6 neighborhoods in a fixed order, restarting from the first whenever a move improves the solution; move selection uses a penalized objective (load balance + capacity + compactness), not raw move cost. |
 | `rvns` | Randomized VNS: samples which neighborhood to explore next by adaptive priority instead of a fixed cycle, and only evaluates a random subsample of each neighborhood for speed. |
+| `lns` | Large Neighborhood Search: each iteration removes the customers on the most expensive edges (`removal_percentage`), then reinserts them with regret-k insertion — the customer with the largest gap between its best and next-best insertion cost goes first. Optionally wraps this in a simulated-annealing acceptance criterion (`use_simulated_annealing`) that cools over the run, so a temporarily worse solution can be kept to escape a local optimum. Doesn't use the shared move classes — it edits routes directly. |
 
 All algorithm-specific tuning knobs (`tabu_tenure`, `max_iterations`,
-`max_no_improvement`, `sample_size`, `switch_depth`) are keyword arguments on
-each algorithm's `run()`, forwarded through `Solver.solve(**kwargs)`; the CLI
-exposes the common ones (`--max-iterations`, `--tabu-tenure`).
+`max_no_improvement`, `sample_size`, `switch_depth`, `lambda_factor`,
+`removal_percentage`, `regret_k`, `use_simulated_annealing`) are keyword
+arguments on each algorithm's `run()`, forwarded through
+`Solver.solve(**kwargs)`; the CLI exposes the common ones
+(`--max-iterations`, `--tabu-tenure`).
 
 ## Pipelines: chaining algorithms
 
@@ -206,3 +217,10 @@ guards against the resulting stale-move corruption (see
 mechanism itself is more of an experiment than a polished technique. With
 more time these could be tuned further; treat `local_search` and `tabu` as
 the more predictable baselines and the others as experimental.
+
+None of the algorithms are fast on the full 300-customer instance —
+`tabu`/`penalty_tabu`'s neighbor generation runs at roughly 10s/iteration
+there, and `lns` at roughly 1-2s/iteration, so their default
+`max_iterations` (1000 and 200 respectively) can take minutes to finish.
+The tiny instance in the tests is unaffected; for the real instance, pass a
+smaller `--max-iterations` if you just want to see it run.

@@ -52,12 +52,20 @@ def test_adaptive_tabu_search():
     _run_algorithm("adaptive_tabu")
 
 
+def test_penalty_tabu_search():
+    _run_algorithm("penalty_tabu")
+
+
 def test_vns():
     _run_algorithm("vns")
 
 
 def test_rvns():
     _run_algorithm("rvns")
+
+
+def test_lns():
+    _run_algorithm("lns")
 
 
 def test_pipeline_chains_algorithms():
