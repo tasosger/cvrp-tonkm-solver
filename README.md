@@ -76,7 +76,8 @@ vrp_solver/
     model.py          Node, Route, VrpModel, calc_dist, EMPTY_VEHICLE_WEIGHT
     solution.py        Solution (a set of routes + total cost)
     moves.py            The 6 move/neighborhood operators every algorithm searches
-    construction.py      Clarke-Wright savings construction (builds the initial solution)
+    construction.py      Clarke-Wright savings construction, adapted for ton-km and
+                            an incremental savings heap (see below)
     algorithms/           One module per improvement algorithm; each exposes
                             `run(initial_solution, cost_matrix, capacity, **kwargs) -> Solution`
                             and is registered in `algorithms/__init__.py`'s ALGORITHMS dict
@@ -100,6 +101,28 @@ every algorithm at once:
 | `InRouteTwoOptMove` | reverse a segment within one route |
 | `InRouteSwapMove` | swap two nodes within one route |
 | `InRouteReinsertMove` | move a node to a different position within one route |
+
+## Construction: an incremental, ton-km-aware Clarke-Wright
+
+`construction.py` isn't textbook Clarke-Wright — two changes matter:
+
+- **Incremental savings heap, not full recomputation.** The classic algorithm
+  recomputes every pairwise saving after each merge. Here, all pairwise
+  savings are pushed into a `heapq` once up front, and after a merge only the
+  savings touching the merged route's new endpoints are recalculated
+  (`recalculate_savings_for_route`); stale entries referencing now-interior
+  nodes are dropped from the heap instead of the heap being rebuilt. That's
+  the difference between an O(n³)-ish construction and one that scales to the
+  300-customer instance without construction dominating runtime.
+- **Load-weighted saving score, not distance saving.** Since the objective is
+  ton-km (see above), `calculate_saving_score` computes the saving in terms
+  of `empty_vehicle_weight`-plus-load times distance, not raw distance —
+  merging two routes only "saves" if it reduces weighted cost, which can
+  differ from the plain-distance answer once loads are uneven.
+
+(Separately, each step randomizes among the top-3 candidate savings rather
+than always taking the best, for construction diversity across `Solver`'s
+multi-start restarts — a diversity tweak, not a performance one.)
 
 ## Algorithms
 
